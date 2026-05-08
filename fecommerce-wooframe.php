@@ -24,8 +24,9 @@ add_action('rest_api_init', function () {
 
           $origin = get_http_origin();
           if ($origin && (
-              // Plugin runtime
-              preg_match('/^https:\/\/[a-z0-9]+\.plugins\.framercdn\.com$/', $origin) ||
+              // Plugin runtime: production ([id].plugins.framercdn.com) and
+              // version-specific ([id]-[versionId].plugins.framercdn.com) domains
+              preg_match('/^https:\/\/[a-z0-9]+(-[a-zA-Z0-9]+)?\.plugins\.framercdn\.com$/', $origin) ||
               // Canvas preview (project-xxx.framercanvas.com)
               preg_match('/^https:\/\/[a-z0-9-]+\.framercanvas\.com$/', $origin) ||
               // Published sites on framer.app and framer.website (free + paid)
