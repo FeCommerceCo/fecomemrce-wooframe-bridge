@@ -18,22 +18,36 @@ if (!defined('ABSPATH')) {
 }
 
 add_action('rest_api_init', function () {
-    remove_filter('rest_pre_serve_request', 'rest_send_cors_headers');
-    add_filter('rest_pre_serve_request', function ($value) {
-        $origin = get_http_origin();
-        if ($origin && (
-            preg_match('/^https:\/\/[a-z0-9]+\.plugins\.framercdn\.com$/', $origin) ||
-            in_array($origin, ['https://framer.com', 'https://app.framer.com'], true)
-        )) {
-            header('Access-Control-Allow-Origin: ' . esc_url($origin));
-            header('Vary: Origin');
-            header('Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE');
-            header('Access-Control-Allow-Headers: Authorization, Content-Type, X-WP-Nonce');
-        }
-        if ('OPTIONS' === $_SERVER['REQUEST_METHOD']) {
+      remove_filter('rest_pre_serve_request', 'rest_send_cors_headers');
+      add_filter('rest_pre_serve_request', function ($value) {
+          header('X-FeCommerce-CORS-Active: yes');
+
+          $origin = get_http_origin();
+          if ($origin && (
+              // Plugin runtime
+              preg_match('/^https:\/\/[a-z0-9]+\.plugins\.framercdn\.com$/', $origin) ||
+              // Canvas preview (project-xxx.framercanvas.com)
+              preg_match('/^https:\/\/[a-z0-9-]+\.framercanvas\.com$/', $origin) ||
+              // Published sites on framer.app and framer.website (free + paid)
+              preg_match('/^https:\/\/[a-z0-9-]+\.framer\.app$/', $origin) ||
+              preg_match('/^https:\/\/[a-z0-9-]+\.framer\.website$/', $origin) ||
+              // Editor + apps
+              in_array($origin, ['https://framer.com', 'https://app.framer.com'], true) ||
+              // Local dev
+              preg_match('/^https?:\/\/localhost(:[0-9]+)?$/', $origin) ||
+              preg_match('/^https?:\/\/127\.0\.0\.1(:[0-9]+)?$/', $origin)
+          )) {
+              header('Access-Control-Allow-Origin: ' . $origin);
+              header('Vary: Origin');
+              header('Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE');
+              header('Access-Control-Allow-Headers: Authorization, Content-Type, X-WP-Nonce');
+          }
+          $request_method = isset($_SERVER['REQUEST_METHOD']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD'])) : '';
+          if ('OPTIONS' === $request_method) {
             status_header(200);
             exit();
-        }
-        return $value;
-    }, 15);
-});
+          }
+
+          return $value;
+      }, 15);
+  });
