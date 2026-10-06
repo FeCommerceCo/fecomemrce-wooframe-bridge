@@ -1,10 +1,10 @@
-=== FeCommerce-WooFrame ===
+=== fecommerce-wooframe-bridge ===
 Contributors: fecommerceco
 Tags: woocommerce, framer, cors, headless, rest-api
 Requires at least: 5.8
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -30,7 +30,7 @@ It also adds three small endpoints:
 
 1. Upload the plugin ZIP in **Plugins → Add New → Upload Plugin**, or install it from the plugin directory.
 2. Activate it.
-3. Open `https://your-store.example/wp-json/fecommerce/v1/status` to confirm it shows version 1.1.0.
+3. Open `https://your-store.example/wp-json/fecommerce/v1/status` to confirm it shows version 1.1.1.
 
 == Frequently Asked Questions ==
 
@@ -44,6 +44,9 @@ No. Only WooCommerce's Store API, the keyed WooCommerce API (for Framer's own ad
 
 == Changelog ==
 
+= 1.1.1 =
+* Renamed to fecommerce-wooframe-bridge. No functional changes.
+
 = 1.1.0 =
 * Published Framer sites on any domain, including custom domains, can read the Store API, without cookies.
 * Cart and checkout work cross-origin: Cart-Token and Nonce headers are allowed and readable; X-WP-Total is readable for catalogue sync.
@@ -56,6 +59,9 @@ No. Only WooCommerce's Store API, the keyed WooCommerce API (for Framer's own ad
 * Initial release.
 
 == Upgrade Notice ==
+
+= 1.1.1 =
+Name change only. Safe to update.
 
 = 1.1.0 =
 Needed by the FeCommerce Framer plugin's direct-to-store release: published sites call your store directly, including on custom domains.
