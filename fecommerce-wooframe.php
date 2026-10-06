@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name:       FeCommerce-WooFrame
+ * Plugin Name:       fecommerce-wooframe-bridge
  * Plugin URI:        https://github.com/FeCommerceCo/fecomemrce-wooframe-bridge
  * Description:       Lets your Framer site and the FeCommerce Framer plugin talk to this WooCommerce store directly.
- * Version:           1.1.0
+ * Version:           1.1.1
  * Author:            FeCommerce
  * Author URI:        https://fecommerce.co
  * License:           GPL-2.0-or-later
@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('FECWF_VERSION', '1.1.0');
+define('FECWF_VERSION', '1.1.1');
 define('FECWF_NAMESPACE', 'fecommerce/v1');
 
 /*
