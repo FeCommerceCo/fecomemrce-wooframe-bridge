@@ -1,5 +1,5 @@
 === FeCommerce-WooFrame ===
-Contributors: dhavalgajjar
+Contributors: fecommerceco
 Tags: woocommerce, framer, cors, headless, rest-api
 Requires at least: 5.8
 Tested up to: 6.8
