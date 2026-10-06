@@ -1,54 +1,352 @@
 <?php
 /**
- * Plugin Name: FeCommerce-WooFrame
- * Plugin URI: https://github.com/dhavalgajjar/fecommerce-wooframe
- * Description: Allow your Framer designs to fetch from this WooCommerce store.
- * Version: 1.0.0
- * Author: Dhaval Gajjar
- * Author URI: https://dhavalgajjar.com
- * License: GPL-2.0-or-later
- * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+ * Plugin Name:       FeCommerce-WooFrame
+ * Plugin URI:        https://github.com/FeCommerceCo/fecomemrce-wooframe-bridge
+ * Description:       Lets your Framer site and the FeCommerce Framer plugin talk to this WooCommerce store directly.
+ * Version:           1.1.0
+ * Author:            FeCommerce
+ * Author URI:        https://fecommerce.co
+ * License:           GPL-2.0-or-later
+ * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Requires at least: 5.8
- * Requires PHP: 7.4
- * Text Domain: fecommerce-wooframe
+ * Requires PHP:      7.4
+ * Requires Plugins:  woocommerce
+ * Text Domain:       fecommerce-wooframe
  */
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
+define('FECWF_VERSION', '1.1.0');
+define('FECWF_NAMESPACE', 'fecommerce/v1');
+
+/*
+ * ─── Who may call what ─────────────────────────────────────────────────────
+ *
+ * Two kinds of REST request reach this store from Framer:
+ *
+ *   1. PUBLIC STORE DATA: WooCommerce's Store API (/wc/store/...) and this
+ *      plugin's own /fecommerce/v1 routes. Products, categories and the
+ *      shopper's cart, which the published Framer site reads directly. A
+ *      merchant's site can live on any domain (their own, *.framer.app,
+ *      *.framer.website), so ANY origin may read these, but never with
+ *      cookies: the credentials header is removed, so another website cannot
+ *      read a logged-in customer's session. FeCommerce components carry their
+ *      cart in the Cart-Token header instead, which needs no cookies.
+ *
+ *   2. KEYED REST API (/wc/v1-3/...): the FeCommerce Framer plugin's catalogue
+ *      sync, authenticated with the merchant's API keys in the Authorization
+ *      header. Only Framer's own origins (the plugin sandbox, the editor and
+ *      canvas) are allowed.
+ *
+ * Every other REST request, and every other origin on the keyed API, keeps
+ * WordPress's default CORS behaviour. Nothing else on the store is affected.
+ */
+
+/**
+ * Framer's own origins: the plugin sandbox, the editor and the canvas.
+ * localhost is allowed only with WP_DEBUG on, for plugin development.
+ */
+function fecwf_is_framer_origin($origin)
+{
+    if (!is_string($origin) || $origin === '') {
+        return false;
+    }
+    if (
+        // Plugin runtime: [id].plugins.framercdn.com and the version-specific
+        // [id]-[versionId].plugins.framercdn.com
+        preg_match('/^https:\/\/[a-z0-9]+(-[a-zA-Z0-9]+)?\.plugins\.framercdn\.com$/', $origin) ||
+        // Canvas preview
+        preg_match('/^https:\/\/[a-z0-9-]+\.framercanvas\.com$/', $origin) ||
+        in_array($origin, array('https://framer.com', 'https://app.framer.com'), true)
+    ) {
+        return true;
+    }
+    if (defined('WP_DEBUG') && WP_DEBUG) {
+        return (bool) preg_match('/^https?:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?$/', $origin);
+    }
+    return false;
+}
+
+/** Store API or this plugin's namespace: public data, any origin, no cookies. */
+function fecwf_is_public_route($route)
+{
+    return is_string($route) && (
+        strpos($route, '/wc/store/') === 0 ||
+        strpos($route, '/' . FECWF_NAMESPACE . '/') === 0
+    );
+}
+
+/** WooCommerce's keyed REST API. */
+function fecwf_is_keyed_route($route)
+{
+    return is_string($route) && (bool) preg_match('#^/wc/v[123]/#', $route);
+}
+
+/**
+ * The REST route of the current request, also during a preflight, before a
+ * WP_REST_Request exists.
+ */
+function fecwf_current_route()
+{
+    if (isset($GLOBALS['wp']) && isset($GLOBALS['wp']->query_vars['rest_route'])) {
+        return '/' . ltrim((string) $GLOBALS['wp']->query_vars['rest_route'], '/');
+    }
+    if (isset($_GET['rest_route'])) {
+        return '/' . ltrim(sanitize_text_field(wp_unslash($_GET['rest_route'])), '/');
+    }
+    return '';
+}
+
+/** True when $origin is this site's own origin. */
+function fecwf_is_same_site($origin)
+{
+    $home = wp_parse_url(home_url());
+    if (!$home || empty($home['host'])) {
+        return false;
+    }
+    $own = (isset($home['scheme']) ? $home['scheme'] : 'https') . '://' . $home['host'] .
+        (isset($home['port']) ? ':' . $home['port'] : '');
+    return strtolower($origin) === strtolower($own);
+}
+
+/**
+ * Headers the browser must be allowed to SEND: the Store API cart session and
+ * nonce. Sent by WordPress on every REST response, preflights included, so
+ * they hold even when another plugin ends a preflight early.
+ */
+add_filter('rest_allowed_cors_headers', function ($headers) {
+    return array_values(array_unique(array_merge(
+        (array) $headers,
+        array('Authorization', 'Content-Type', 'X-WP-Nonce', 'Cart-Token', 'Nonce', 'X-WC-Store-API-Nonce')
+    )));
+});
+
+/**
+ * Headers the browser must be allowed to READ: the refreshed cart session and
+ * nonce, and the pagination totals the catalogue sync uses to prove it saw
+ * every product.
+ */
+add_filter('rest_exposed_cors_headers', function ($headers) {
+    return array_values(array_unique(array_merge(
+        (array) $headers,
+        array('X-WP-Total', 'X-WP-TotalPages', 'Link', 'Cart-Token', 'Nonce', 'X-WC-Store-API-Nonce')
+    )));
+});
+
+/**
+ * WooCommerce's Store API only answers origins WordPress considers allowed.
+ * Public routes allow any origin (without cookies, see below); the keyed API
+ * allows Framer's own origins.
+ */
+add_filter('allowed_http_origin', function ($allowed, $origin) {
+    if ($allowed || !is_string($origin) || $origin === '') {
+        return $allowed;
+    }
+    $route = fecwf_current_route();
+    if (fecwf_is_public_route($route)) {
+        return $origin;
+    }
+    if (fecwf_is_keyed_route($route) && fecwf_is_framer_origin($origin)) {
+        return $origin;
+    }
+    return $allowed;
+}, 10, 2);
+
+/**
+ * The response's CORS headers, applied last so nothing later replaces them.
+ */
+add_filter('rest_pre_serve_request', function ($served, $result = null, $request = null) {
+    $origin = get_http_origin();
+    if (!$origin) {
+        return $served;
+    }
+    $route = ($request instanceof WP_REST_Request) ? $request->get_route() : fecwf_current_route();
+
+    $public = fecwf_is_public_route($route);
+    $keyed = fecwf_is_keyed_route($route) && fecwf_is_framer_origin($origin);
+    if (!$public && !$keyed) {
+        return $served; // WordPress default
+    }
+
+    header('Access-Control-Allow-Origin: ' . $origin);
+    header('Vary: Origin', false);
+    header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    header('X-FeCommerce-CORS-Active: ' . FECWF_VERSION);
+
+    // Cookies are never shared with another site. The store's own pages keep
+    // their usual behaviour.
+    if (!fecwf_is_same_site($origin) && !headers_sent()) {
+        header_remove('Access-Control-Allow-Credentials');
+    }
+    return $served;
+}, PHP_INT_MAX, 3);
+
+/*
+ * ─── /fecommerce/v1 ────────────────────────────────────────────────────────
+ */
 add_action('rest_api_init', function () {
-      remove_filter('rest_pre_serve_request', 'rest_send_cors_headers');
-      add_filter('rest_pre_serve_request', function ($value) {
-          header('X-FeCommerce-CORS-Active: yes');
+    // GET /fecommerce/v1/status — lets the Framer plugin tell whether this
+    // plugin is installed, and which version.
+    register_rest_route(FECWF_NAMESPACE, '/status', array(
+        'methods' => 'GET',
+        'permission_callback' => '__return_true',
+        'callback' => function () {
+            return rest_ensure_response(array(
+                'plugin' => 'fecommerce-wooframe',
+                'version' => FECWF_VERSION,
+                'woocommerce' => defined('WC_VERSION') ? WC_VERSION : null,
+                'stripe' => fecwf_stripe_publishable_key() !== null,
+            ));
+        },
+    ));
 
-          $origin = get_http_origin();
-          if ($origin && (
-              // Plugin runtime: production ([id].plugins.framercdn.com) and
-              // version-specific ([id]-[versionId].plugins.framercdn.com) domains
-              preg_match('/^https:\/\/[a-z0-9]+(-[a-zA-Z0-9]+)?\.plugins\.framercdn\.com$/', $origin) ||
-              // Canvas preview (project-xxx.framercanvas.com)
-              preg_match('/^https:\/\/[a-z0-9-]+\.framercanvas\.com$/', $origin) ||
-              // Published sites on framer.app and framer.website (free + paid)
-              preg_match('/^https:\/\/[a-z0-9-]+\.framer\.app$/', $origin) ||
-              preg_match('/^https:\/\/[a-z0-9-]+\.framer\.website$/', $origin) ||
-              // Editor + apps
-              in_array($origin, ['https://framer.com', 'https://app.framer.com'], true) ||
-              // Local dev
-              preg_match('/^https?:\/\/localhost(:[0-9]+)?$/', $origin) ||
-              preg_match('/^https?:\/\/127\.0\.0\.1(:[0-9]+)?$/', $origin)
-          )) {
-              header('Access-Control-Allow-Origin: ' . $origin);
-              header('Vary: Origin');
-              header('Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE');
-              header('Access-Control-Allow-Headers: Authorization, Content-Type, X-WP-Nonce');
-          }
-          $request_method = isset($_SERVER['REQUEST_METHOD']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD'])) : '';
-          if ('OPTIONS' === $request_method) {
-            status_header(200);
-            exit();
-          }
+    // GET /fecommerce/v1/config — the storefront's public runtime settings.
+    // The Stripe PUBLISHABLE key is read from the merchant's own WooCommerce
+    // Stripe settings when the checkout loads, so it never has to be copied
+    // into the Framer project. Secret keys are never read or returned.
+    register_rest_route(FECWF_NAMESPACE, '/config', array(
+        'methods' => 'GET',
+        'permission_callback' => '__return_true',
+        'callback' => function () {
+            $response = rest_ensure_response(array(
+                'stripe' => array(
+                    'publishableKey' => fecwf_stripe_publishable_key(),
+                ),
+            ));
+            $response->header('Cache-Control', 'public, max-age=300');
+            return $response;
+        },
+    ));
 
-          return $value;
-      }, 15);
-  });
+    // POST /fecommerce/v1/reviews — the storefront's review form.
+    register_rest_route(FECWF_NAMESPACE, '/reviews', array(
+        'methods' => 'POST',
+        'permission_callback' => '__return_true',
+        'callback' => 'fecwf_submit_review',
+        'args' => array(
+            'productId' => array('required' => true, 'type' => 'integer', 'minimum' => 1),
+            'rating' => array('required' => false, 'type' => 'integer', 'minimum' => 1, 'maximum' => 5),
+            'review' => array('required' => true, 'type' => 'string'),
+            'author' => array('required' => true, 'type' => 'string'),
+            'email' => array('required' => true, 'type' => 'string'),
+        ),
+    ));
+});
+
+/**
+ * The publishable key of the official WooCommerce Stripe gateway, for the mode
+ * it is in, or null when Stripe is not set up. Only a value shaped like a
+ * publishable key (pk_live_… / pk_test_…) is ever returned.
+ */
+function fecwf_stripe_publishable_key()
+{
+    $settings = get_option('woocommerce_stripe_settings');
+    if (!is_array($settings)) {
+        return null;
+    }
+    if (isset($settings['enabled']) && $settings['enabled'] !== 'yes') {
+        return null;
+    }
+    $test = isset($settings['testmode']) && $settings['testmode'] === 'yes';
+    $key = $test
+        ? (isset($settings['test_publishable_key']) ? $settings['test_publishable_key'] : '')
+        : (isset($settings['publishable_key']) ? $settings['publishable_key'] : '');
+    $key = is_string($key) ? trim($key) : '';
+    return preg_match('/^pk_(live|test)_[A-Za-z0-9]+$/', $key) ? $key : null;
+}
+
+/**
+ * Create a product review from the storefront form. Goes through WordPress's
+ * own comment pipeline (wp_new_comment), so moderation, flood, duplicate and
+ * spam checks (Akismet etc.) all apply as for a review left on the store.
+ */
+function fecwf_submit_review(WP_REST_Request $request)
+{
+    $product_id = (int) $request->get_param('productId');
+    $rating = $request->get_param('rating');
+    $review = trim((string) $request->get_param('review'));
+    $author = trim(sanitize_text_field((string) $request->get_param('author')));
+    $email = trim(sanitize_email((string) $request->get_param('email')));
+
+    $error = function ($code, $message, $status) {
+        return new WP_Error($code, $message, array('status' => $status));
+    };
+
+    if ($review === '' || strlen($review) > 5000) {
+        return $error('fecwf_invalid_review', 'Please write a review (up to 5000 characters).', 400);
+    }
+    if ($author === '' || strlen($author) > 100) {
+        return $error('fecwf_invalid_author', 'Please enter your name.', 400);
+    }
+    if (!is_email($email)) {
+        return $error('fecwf_invalid_email', 'Please enter a valid email address.', 400);
+    }
+    if ($rating !== null && ((int) $rating < 1 || (int) $rating > 5)) {
+        return $error('fecwf_invalid_rating', 'Rating must be between 1 and 5.', 400);
+    }
+
+    if (get_option('woocommerce_enable_reviews', 'yes') !== 'yes') {
+        return $error('fecwf_reviews_disabled', 'Reviews are turned off on this store.', 403);
+    }
+    $post = get_post($product_id);
+    if (!$post || $post->post_type !== 'product' || $post->post_status !== 'publish') {
+        return $error('fecwf_unknown_product', 'This product could not be found.', 404);
+    }
+    if (!comments_open($product_id)) {
+        return $error('fecwf_reviews_closed', 'Reviews are closed for this product.', 403);
+    }
+    if (get_option('woocommerce_review_rating_verification_required', 'no') === 'yes') {
+        // Only verified owners may review, and a form on another site cannot
+        // prove ownership.
+        return $error('fecwf_verified_only', 'Only verified owners can review this product. Please leave your review on the store.', 403);
+    }
+    if ($rating === null && get_option('woocommerce_review_rating_required', 'yes') === 'yes') {
+        return $error('fecwf_rating_required', 'Please choose a rating.', 400);
+    }
+
+    // At most 5 submissions per address per 10 minutes, on top of WordPress's
+    // own flood check.
+    $ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
+    $limit_key = 'fecwf_rv_' . md5($ip);
+    $count = (int) get_transient($limit_key);
+    if ($count >= 5) {
+        return $error('fecwf_rate_limited', 'Too many reviews from you in a short time. Please try again later.', 429);
+    }
+    set_transient($limit_key, $count + 1, 10 * MINUTE_IN_SECONDS);
+
+    $comment_id = wp_new_comment(array(
+        'comment_post_ID' => $product_id,
+        'comment_author' => $author,
+        'comment_author_email' => $email,
+        'comment_author_url' => '',
+        'comment_content' => $review,
+        'comment_type' => 'review',
+        'comment_parent' => 0,
+        'user_id' => 0,
+        'comment_author_IP' => $ip,
+        'comment_agent' => isset($_SERVER['HTTP_USER_AGENT']) ? substr(sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])), 0, 254) : '',
+    ), true);
+
+    if (is_wp_error($comment_id)) {
+        // wp_allow_comment reports duplicates (409) and floods (429) with the
+        // status as plain error data; other errors carry array('status' => …).
+        $data = $comment_id->get_error_data();
+        $status = is_int($data) ? $data : ((is_array($data) && isset($data['status'])) ? (int) $data['status'] : 409);
+        return $error($comment_id->get_error_code(), $comment_id->get_error_message(), $status);
+    }
+
+    if ($rating !== null) {
+        add_comment_meta($comment_id, 'rating', (int) $rating, true);
+    }
+    if (class_exists('WC_Comments') && method_exists('WC_Comments', 'clear_transients')) {
+        WC_Comments::clear_transients($product_id);
+    }
+
+    $comment = get_comment($comment_id);
+    return rest_ensure_response(array(
+        'ok' => true,
+        'status' => ($comment && (string) $comment->comment_approved === '1') ? 'approved' : 'pending',
+    ));
+}
