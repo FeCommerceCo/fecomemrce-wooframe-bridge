@@ -9,8 +9,6 @@
 Thumbs.db
 desktop.ini
 
-# Claude Code
-.claude/
 
 # WordPress
 *.log
