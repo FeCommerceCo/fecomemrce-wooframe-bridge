@@ -60,4 +60,4 @@ GPL-2.0-or-later. See [LICENSE](LICENSE).
 
 ## Author
 
-[Dhaval Gajjar](https://dhavalgajjar.com)
+[FeCommerce](https://fecommerce.co)
