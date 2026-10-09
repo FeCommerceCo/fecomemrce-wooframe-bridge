@@ -10,7 +10,9 @@ Browsers only let a website read another site's data when that site says it may 
 
 **Public store data, any domain, never with cookies.** WooCommerce's Store API (`/wp-json/wc/store/…`) and this plugin's own routes (`/wp-json/fecommerce/v1/…`) can be read from any domain, so your Framer site works on `*.framer.app`, `*.framer.website` or your own domain. These requests never carry cookies: the `Access-Control-Allow-Credentials` header is removed for other sites, so no other website can read a logged-in customer's session. FeCommerce components keep the shopper's cart in the `Cart-Token` header instead. The browser may send `Cart-Token`, `Nonce` and `X-WC-Store-API-Nonce`, and read them back along with `X-WP-Total` / `X-WP-TotalPages`.
 
-**Keyed REST API, Framer only.** WooCommerce's authenticated API (`/wp-json/wc/v1–v3/…`), used by the FeCommerce plugin's catalogue sync with your API keys, is opened only to Framer's own addresses:
+**WooCommerce's key-protected API stays closed.** The FeCommerce Framer plugin uses only the public Store API and never holds WooCommerce API keys, so this plugin doesn't open WooCommerce's authenticated REST API (`/wp-json/wc/v1–v3/…`) to other sites. (Version 1.1 opened it to Framer's addresses; 1.2 removes that.)
+
+**Framer's own addresses** are always allowed to read the public routes, even when you restrict which sites may use your store (below), so syncing from Framer keeps working:
 
 - `https://framer.com`, `https://app.framer.com`
 - `https://*.plugins.framercdn.com` (the Framer plugin sandbox, including version-specific domains)
@@ -30,7 +32,7 @@ Published Framer sites check their key themselves, so Regenerate and Disconnect 
 
 **Optional: restrict which sites may use your store.** Off by default. When on, the public routes only answer browser requests from the site addresses you list, plus your own site and Framer's addresses (so syncing keeps working). Requests from unlisted sites get `403`. The screen suggests addresses recently seen using your store (at most 20, updated at most daily per address).
 
-**Everything else is unchanged.** Every other REST route, and every other origin on the keyed API, keeps WordPress's default CORS behaviour.
+**Everything else is unchanged.** Every other REST route keeps WordPress's default CORS behaviour.
 
 ## Endpoints
 
@@ -67,6 +69,10 @@ If Connect fails with "couldn't confirm your site", a security plugin, firewall 
 - New, optional: restrict which sites may use the store's public data.
 - `/status` reports `connect: true`.
 - Deleting the plugin removes its settings and connection (`uninstall.php`).
+- Security: WooCommerce's key-protected REST API (`/wc/v1–v3`) is no longer opened to Framer's addresses, and `Authorization` is no longer an allowed cross-site header. FeCommerce uses only the public Store API.
+- Security: `/status` reports whether WooCommerce is active instead of its exact version.
+- Security: the connection challenge is single-use and never cached.
+- Copyright and license notices added to every file.
 
 ### 1.1.0
 - Published Framer sites on any domain (including custom domains) can read the Store API, without cookies.
@@ -79,9 +85,22 @@ If Connect fails with "couldn't confirm your site", a security plugin, firewall 
 ### 1.0.0
 - Initial release: CORS headers for Framer origins.
 
-## License
+## Copyright and license
 
-GPL-2.0-or-later. See [LICENSE](LICENSE).
+Copyright (C) 2026 [FeCommerce](https://fecommerce.co)
+
+This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but **without any warranty**; without even the implied warranty of merchantability or fitness for a particular purpose. See the GNU General Public License for more details.
+
+The full license text is in [LICENSE](LICENSE), and at <https://www.gnu.org/licenses/gpl-2.0.html>.
+
+**If you redistribute or modify this plugin:**
+- keep this copyright notice, the license notice in each PHP file, and the `LICENSE` file;
+- mark the files you changed and the date of your changes;
+- distribute your version under GPL-2.0-or-later as well.
+
+"FeCommerce" and the FeCommerce logo are names of FeCommerce and are not licensed under the GPL. Forks must not present themselves as the official FeCommerce plugin.
 
 ## Author
 

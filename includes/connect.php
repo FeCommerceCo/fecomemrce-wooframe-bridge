@@ -19,6 +19,10 @@
  * The service is contacted only when an admin clicks Connect, Regenerate or
  * Disconnect. It receives this store's address and the challenge, and keeps
  * the store's hostname, a connection id and dates. Nothing else is sent.
+ *
+ * Copyright (C) 2026 FeCommerce (https://fecommerce.co)
+ * Licensed under the GNU General Public License v2 or later (GPL-2.0-or-later).
+ * See the LICENSE file in the plugin's root folder.
  */
 
 if (!defined('ABSPATH')) {
@@ -81,8 +85,14 @@ function fecwf_new_challenge()
 
 /*
  * GET /fecommerce/v1/challenge: answers the service's domain check with the
- * challenge this plugin is waiting on, and 404 at any other time. The
- * challenge is useless once used: it's deleted as soon as the service answers.
+ * challenge this plugin is waiting on, and 404 at any other time.
+ *
+ * SINGLE USE: the challenge is deleted the moment it is read, so the one read
+ * the service makes is the only one that can succeed. Someone polling this
+ * address during the two-minute window can at most make that Connect fail
+ * (the admin clicks again); they can't reuse the challenge to request keys or
+ * revocations of their own. Responses are never cached, so a page cache or
+ * CDN can't replay one either.
  */
 add_action('rest_api_init', function () {
     register_rest_route(FECWF_NAMESPACE, '/challenge', array(
@@ -90,11 +100,14 @@ add_action('rest_api_init', function () {
         'permission_callback' => '__return_true',
         'callback' => function () {
             $challenge = get_transient(FECWF_CHALLENGE_TRANSIENT);
+            delete_transient(FECWF_CHALLENGE_TRANSIENT);
             if (!is_string($challenge) || $challenge === '') {
-                return new WP_Error('fecwf_no_challenge', 'No connection is in progress.', array('status' => 404));
+                $response = new WP_REST_Response(array('code' => 'fecwf_no_challenge', 'message' => 'No connection is in progress.'), 404);
+            } else {
+                $response = new WP_REST_Response(array('challenge' => $challenge), 200);
             }
-            $response = rest_ensure_response(array('challenge' => $challenge));
-            $response->header('Cache-Control', 'no-store');
+            $response->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+            $response->header('CDN-Cache-Control', 'no-store');
             return $response;
         },
     ));
