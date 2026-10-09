@@ -341,6 +341,13 @@ function fecwf_render_admin_page()
     $origin = fecwf_store_origin();
     $connection = fecwf_get_connection();
     $auth_host = wp_parse_url(fecwf_auth_base(), PHP_URL_HOST);
+    if ($connection && is_wp_error($origin)) {
+        $pill = array(' is-warn', 'Needs attention');
+    } elseif ($connection) {
+        $pill = array(' is-on', 'Connected');
+    } else {
+        $pill = array('', 'Not connected');
+    }
     ?>
     <div class="wrap fecwf">
         <div class="fecwf-header">
@@ -349,7 +356,7 @@ function fecwf_render_admin_page()
                 <h1>FeCommerce</h1>
                 <p class="fecwf-subtitle">Connect this WooCommerce store to Framer</p>
             </div>
-            <span class="fecwf-pill<?php echo $connection ? ' is-on' : ''; ?>"><?php echo $connection ? 'Connected' : 'Not connected'; ?></span>
+            <span class="fecwf-pill<?php echo esc_attr($pill[0]); ?>"><?php echo esc_html($pill[1]); ?></span>
         </div>
         <hr class="wp-header-end" />
         <?php if (is_array($notice)) : ?>
@@ -398,13 +405,19 @@ function fecwf_render_admin_page()
             <?php endif; ?>
         </div>
 
-        <?php if ($connection && !is_wp_error($origin)) : ?>
+        <?php if ($connection) : ?>
             <div class="fecwf-card">
                 <h2>Manage</h2>
-                <p>Framer sites accept only the key this store currently shows, so Regenerate and Disconnect take effect on published sites within about a minute. To stop one particular site while keeping the others, restrict which sites may use this store below.</p>
+                <?php if (is_wp_error($origin)) : ?>
+                    <p>This store is connected, but its site address can't be used right now, so the key can't be shown or regenerated. Fix the site address above, or disconnect this store.</p>
+                <?php else : ?>
+                    <p>Framer sites accept only the key this store currently shows, so Regenerate and Disconnect take effect on published sites within about a minute. To stop one particular site while keeping the others, restrict which sites may use this store below.</p>
+                <?php endif; ?>
                 <div class="fecwf-actions">
                     <?php
-                    fecwf_action_form('fecwf_regenerate', 'Regenerate key', 'fecwf-btn', 'Issue a new connection key? The old key stops working on published Framer sites within about a minute, so paste the new key into each Framer project that uses this store and republish.');
+                    if (!is_wp_error($origin)) {
+                        fecwf_action_form('fecwf_regenerate', 'Regenerate key', 'fecwf-btn', 'Issue a new connection key? The old key stops working on published Framer sites within about a minute, so paste the new key into each Framer project that uses this store and republish.');
+                    }
                     fecwf_action_form('fecwf_disconnect', 'Disconnect', 'fecwf-btn fecwf-btn-danger', 'Disconnect this store from Framer? Published Framer sites that use this store stop showing its products within about a minute.');
                     ?>
                 </div>
