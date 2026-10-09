@@ -323,7 +323,7 @@ add_action('admin_notices', function () {
 function fecwf_action_form($action, $label, $class, $confirm = '')
 {
     ?>
-    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"<?php echo $confirm !== '' ? ' onsubmit="return confirm(' . esc_attr(wp_json_encode($confirm)) . ');"' : ''; ?>>
+    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"<?php echo $confirm !== '' ? ' data-fecwf-confirm="' . esc_attr($confirm) . '"' : ''; ?>>
         <input type="hidden" name="action" value="<?php echo esc_attr($action); ?>" />
         <?php wp_nonce_field($action); ?>
         <button type="submit" class="<?php echo esc_attr($class); ?>"><?php echo esc_html($label); ?></button>
@@ -383,11 +383,12 @@ function fecwf_render_admin_page()
                         <span class="fecwf-when-off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span>
                         <span class="fecwf-when-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.9 4.24A9.1 9.1 0 0 1 12 4c6.5 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19M6.6 6.6A18.4 18.4 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M2 2l20 20"/></svg></span>
                     </button>
-                    <button type="button" class="fecwf-icon-btn fecwf-copy" id="fecwf-copy">
+                    <button type="button" class="fecwf-icon-btn fecwf-copy" id="fecwf-copy" aria-label="Copy key">
                         <span class="fecwf-when-off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span class="fecwf-btn-text">Copy</span></span>
-                        <span class="fecwf-when-on" role="status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg><span class="fecwf-btn-text">Copied</span></span>
+                        <span class="fecwf-when-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg><span class="fecwf-btn-text">Copied</span></span>
                     </button>
                 </div>
+                <span class="screen-reader-text" id="fecwf-copy-status" role="status" aria-live="polite"></span>
 
                 <ol class="fecwf-steps">
                     <li>In Framer, open the <strong>FeCommerce</strong> plugin.</li>
