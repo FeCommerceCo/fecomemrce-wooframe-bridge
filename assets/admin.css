@@ -433,7 +433,3 @@
 .fecwf-meta strong {
     direction: ltr;
 }
-.fecwf .fecwf-key input,
-.fecwf-meta strong {
-    text-align: left;
-}
