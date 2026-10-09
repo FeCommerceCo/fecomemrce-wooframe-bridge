@@ -13,6 +13,14 @@
  * Requests without an Origin header (servers, command-line tools) are not
  * browser cross-site requests and are unaffected, as the data is public.
  *
+ * This is a BROWSER restriction, not access control. It stops another website
+ * from using the store in its visitors' browsers, which always send their
+ * real Origin and can't be made to fake it. It can't stop a server or script
+ * calling the routes directly, since that caller can send any Origin or none:
+ * WooCommerce's Store API is public on every WooCommerce store, and cart and
+ * checkout keep WooCommerce's own protections (cart token, nonce, payment
+ * gateway) whatever this setting says.
+ *
  * To help the admin build the list, the addresses of HTTPS sites recently
  * seen calling the store are remembered (at most 20). Anyone can send a
  * request with any Origin header, so this list is only a suggestion the admin
@@ -176,7 +184,7 @@ add_action('admin_post_fecwf_save_sites', function () {
     update_option(FECWF_RESTRICT_OPTION, $restrict ? 'yes' : 'no', true);
 
     $message = $restrict
-        ? ($sites ? 'Saved. Only the listed sites (plus this store and Framer) may use this store.' : 'Saved. No sites are listed, so only this store and Framer may use it: every published Framer site is now blocked.')
+        ? ($sites ? 'Saved. Only the listed sites (plus this store and Framer) may show this store to their visitors.' : 'Saved. No sites are listed, so only this store and Framer may use it: every published Framer site is now blocked.')
         : 'Saved. Any site may use this store (restriction is off).';
     if ($rejected) {
         $message .= ' Ignored (not a web address): ' . implode(', ', array_map('sanitize_text_field', $rejected)) . '.';
@@ -193,7 +201,7 @@ function fecwf_render_allowlist_section()
     $seen = array_diff_key(fecwf_seen_sites(), array_flip($sites));
     ?>
     <h2 style="margin-top:32px">Restrict which sites may use this store</h2>
-    <p style="max-width:720px">Optional. When on, your store's product, cart and checkout data can only be used by the sites listed here, plus this store itself and Framer's editor. Use it to stop a site immediately, for example an old Framer project you no longer want selling from your store.</p>
+    <p style="max-width:720px">Optional. When on, only the websites listed here, plus this store itself and Framer's editor, can show your store's products, cart and checkout to their visitors. Use it to stop one site, for example an old Framer project you no longer want selling from your store. This controls websites, not direct access: your store's public product and cart API stays public, as on every WooCommerce store.</p>
     <div class="notice notice-warning inline" style="max-width:720px"><p>List <strong>every</strong> address your Framer site is published on (your own domain, its <code>.framer.website</code> or <code>.framer.app</code> address, and any preview address you use). A site that isn't listed loses its products, cart and checkout.</p></div>
     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
         <input type="hidden" name="action" value="fecwf_save_sites" />

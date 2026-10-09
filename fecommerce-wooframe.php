@@ -36,6 +36,11 @@ if (!defined('ABSPATH')) {
 define('FECWF_VERSION', '1.2.0');
 define('FECWF_NAMESPACE', 'fecommerce/v1');
 define('FECWF_FILE', __FILE__);
+// Reviews accepted from the storefront form per hour, store-wide. A store
+// can raise it in wp-config.php.
+if (!defined('FECWF_REVIEWS_PER_HOUR')) {
+    define('FECWF_REVIEWS_PER_HOUR', 30);
+}
 
 require_once __DIR__ . '/includes/connect.php';
 require_once __DIR__ . '/includes/site-allowlist.php';
@@ -266,6 +271,8 @@ add_action('rest_api_init', function () {
             'review' => array('required' => true, 'type' => 'string'),
             'author' => array('required' => true, 'type' => 'string'),
             'email' => array('required' => true, 'type' => 'string'),
+            // Honeypot: a hidden field people never see or fill in.
+            'website' => array('required' => false, 'type' => 'string'),
         ),
     ));
 });
@@ -294,8 +301,15 @@ function fecwf_stripe_publishable_key()
 
 /**
  * Create a product review from the storefront form. Goes through WordPress's
- * own comment pipeline (wp_new_comment), so moderation, flood, duplicate and
- * spam checks (Akismet etc.) all apply as for a review left on the store.
+ * own comment pipeline (wp_new_comment), so flood, duplicate and spam checks
+ * (Akismet etc.) all apply as for a review left on the store.
+ *
+ * Anyone can call this route, from any address, so on top of that:
+ *   - every review from it is held for moderation, whatever the store's
+ *     discussion settings, so nothing appears without the admin approving it;
+ *   - at most 5 per address per 10 minutes, and FECWF_REVIEWS_PER_HOUR for
+ *     the whole store, so rotating addresses can't flood the moderation queue;
+ *   - a filled-in honeypot field gets a normal-looking answer and is dropped.
  */
 function fecwf_submit_review(WP_REST_Request $request)
 {
@@ -341,16 +355,34 @@ function fecwf_submit_review(WP_REST_Request $request)
         return $error('fecwf_rating_required', 'Please choose a rating.', 400);
     }
 
+    // A bot that fills in every field: answer as if accepted, store nothing.
+    if (trim((string) $request->get_param('website')) !== '') {
+        return rest_ensure_response(array('ok' => true, 'status' => 'pending'));
+    }
+
     // At most 5 submissions per address per 10 minutes, on top of WordPress's
-    // own flood check.
+    // own flood check. REMOTE_ADDR, not a forwarded-for header, which the
+    // sender controls. Behind a proxy every visitor shares one address; the
+    // store-wide cap below is what bounds the total either way.
     $ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
     $limit_key = 'fecwf_rv_' . md5($ip);
     $count = (int) get_transient($limit_key);
     if ($count >= 5) {
         return $error('fecwf_rate_limited', 'Too many reviews from you in a short time. Please try again later.', 429);
     }
+    $store_key = 'fecwf_rv_all_' . (int) floor(time() / HOUR_IN_SECONDS);
+    $store_count = (int) get_transient($store_key);
+    if ($store_count >= FECWF_REVIEWS_PER_HOUR) {
+        return $error('fecwf_rate_limited', 'This store is receiving a lot of reviews right now. Please try again later.', 429);
+    }
     set_transient($limit_key, $count + 1, 10 * MINUTE_IN_SECONDS);
+    set_transient($store_key, $store_count + 1, HOUR_IN_SECONDS);
 
+    // Held for moderation. Spam, trash and errors from other checks stand.
+    $hold = function ($approved) {
+        return (is_wp_error($approved) || $approved === 'spam' || $approved === 'trash') ? $approved : 0;
+    };
+    add_filter('pre_comment_approved', $hold, PHP_INT_MAX);
     $comment_id = wp_new_comment(array(
         'comment_post_ID' => $product_id,
         'comment_author' => $author,
@@ -363,6 +395,7 @@ function fecwf_submit_review(WP_REST_Request $request)
         'comment_author_IP' => $ip,
         'comment_agent' => isset($_SERVER['HTTP_USER_AGENT']) ? substr(sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])), 0, 254) : '',
     ), true);
+    remove_filter('pre_comment_approved', $hold, PHP_INT_MAX);
 
     if (is_wp_error($comment_id)) {
         // wp_allow_comment reports duplicates (409) and floods (429) with the

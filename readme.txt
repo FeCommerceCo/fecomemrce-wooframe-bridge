@@ -22,14 +22,14 @@ Browsers only let a website read another site's data when that site says it may 
 
 **Connection key for Framer.** The FeCommerce Framer plugin only works with stores that have a connection key. Under **WooCommerce → FeCommerce**, click **Connect to Framer**. This plugin then sends your store's address to the FeCommerce connection service (auth.fecommerce.co). The service confirms the address belongs to your site by reading `/wp-json/fecommerce/v1/challenge` once, checks that WooCommerce answers by reading one product id from `/wp-json/wc/store/v1/products`, and signs a key naming your store. Paste the key into the FeCommerce plugin in Framer. The service keeps your store's hostname, a connection id and dates; nothing about your products, orders or customers. It is contacted only when you click Connect, Regenerate or Disconnect.
 
-**Optional: restrict which sites may use your store.** Off by default. When on, only the site addresses you list (plus your own site and Framer's editor) can use your store's product, cart and checkout data.
+**Optional: restrict which sites may use your store.** Off by default. When on, only the site addresses you list (plus your own site and Framer's editor) can show your store's products, cart and checkout to their visitors. It controls other websites, not direct access: your store's public product and cart API stays public, as on every WooCommerce store.
 
 It also adds four small endpoints:
 
 * `GET /wp-json/fecommerce/v1/status`: confirms the plugin is installed, and its version.
 * `GET /wp-json/fecommerce/v1/challenge`: answers the connection service's one-time domain check while you are connecting, and nothing (404) at any other time.
 * `GET /wp-json/fecommerce/v1/config`: your Stripe **publishable** key from WooCommerce Stripe settings, so your checkout can read it at runtime. Secret keys are never read or returned.
-* `POST /wp-json/fecommerce/v1/reviews`: product reviews from your Framer site's review form, through WordPress's own moderation, duplicate, flood and spam checks.
+* `POST /wp-json/fecommerce/v1/reviews`: product reviews from your Framer site's review form, through WordPress's own duplicate, flood and spam checks. Every review from it waits for your approval.
 
 == Installation ==
 
@@ -70,7 +70,8 @@ If you redistribute or modify this plugin, keep this copyright notice and the li
 = 1.2.0 =
 * New: Connect to Framer (WooCommerce → FeCommerce) issues the store's connection key, which the FeCommerce Framer plugin now requires. Regenerate and Disconnect included.
 * New endpoint: `GET /fecommerce/v1/challenge`, the one-time domain check used while connecting.
-* New, optional: restrict which sites may use the store's public data.
+* New, optional: restrict which sites may use the store's public data (a browser restriction, not access control).
+* Reviews from the Framer review form are always held for moderation, capped store-wide (30 an hour, `FECWF_REVIEWS_PER_HOUR`) and screened with a honeypot field.
 * `/status` reports `connect: true` and the current connection key's `sid` (null when disconnected), cached for 60 seconds. FeCommerce in Framer accepts a key only while this matches, so Regenerate and Disconnect stop the old key on published sites.
 * Deleting the plugin removes its settings and connection.
 * Security: WooCommerce's key-protected REST API (/wc/v1-3) is no longer opened to Framer's addresses, and the Authorization header is no longer allowed cross-site. FeCommerce uses only the public Store API.
