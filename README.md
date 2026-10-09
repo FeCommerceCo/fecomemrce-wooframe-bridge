@@ -1,4 +1,4 @@
-# FeCommerce-WooFrame
+# WooCommerce Bridge - FeCommerce Co
 
 A small WordPress plugin that lets your [Framer](https://framer.com) site and the FeCommerce Framer plugin talk to your WooCommerce store directly, and issues your store's Framer **connection key**.
 
@@ -48,6 +48,8 @@ Published Framer sites check their key themselves, so Regenerate and Disconnect 
 1. Download the latest release ZIP from [Releases](https://github.com/FeCommerceCo/fecomemrce-wooframe-bridge/releases).
 2. In WordPress admin go to **Plugins → Add New → Upload Plugin**, choose the ZIP and click **Install Now**.
 3. Click **Activate**.
+
+**Updating from 1.1 or older:** the plugin was renamed in 1.2.0, so WordPress installs it next to the old one instead of replacing it. Activating it switches the old `fecommerce-wooframe-bridge` off automatically. Then delete the old plugin. Your settings and connection are kept.
 
 Then go to **WooCommerce → FeCommerce**, click **Connect to Framer**, and copy the connection key into the FeCommerce plugin in Framer.
 
