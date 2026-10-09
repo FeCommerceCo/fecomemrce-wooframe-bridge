@@ -1,0 +1,4 @@
+# Left out of release ZIPs built with `git archive` (see README.md).
+.gitattributes export-ignore
+.gitignore export-ignore
+README.md export-ignore
