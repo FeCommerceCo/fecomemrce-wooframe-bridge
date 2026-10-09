@@ -30,7 +30,7 @@ The service is contacted only when an admin clicks **Connect to Framer**, **Rege
 
 Published Framer sites check their key themselves, so Regenerate and Disconnect don't switch off sites that are already live. To stop a site immediately, use the restriction below.
 
-**Optional: restrict which sites may use your store.** Off by default. When on, the public routes only answer browser requests from the site addresses you list, plus your own site and Framer's addresses (so syncing keeps working). Requests from unlisted sites get `403`. The screen suggests addresses recently seen using your store (at most 20, updated at most daily per address).
+**Optional: restrict which sites may use your store.** Off by default. When on, the public routes only answer browser requests from the site addresses you list, plus your own site and Framer's addresses (so syncing keeps working). Requests from unlisted sites get `403`. This is a browser restriction, not access control: a server or script can send any `Origin` header or none, and WooCommerce's Store API is public on every store. Cart and checkout keep WooCommerce's own protections. The screen suggests addresses recently seen using your store (at most 20, updated at most daily per address).
 
 **Everything else is unchanged.** Every other REST route keeps WordPress's default CORS behaviour.
 
@@ -41,7 +41,7 @@ Published Framer sites check their key themselves, so Regenerate and Disconnect 
 | `GET /wp-json/fecommerce/v1/challenge` | `{ challenge }` while a Connect, Regenerate or Disconnect is in progress (2 minutes at most), `404` otherwise. `Cache-Control: no-store` |
 | `GET /wp-json/fecommerce/v1/status` | `{ plugin, version, woocommerce, stripe, connect }` so the Framer plugin can tell this plugin is installed and up to date |
 | `GET /wp-json/fecommerce/v1/config` | `{ stripe: { publishableKey } }`: the **publishable** key from your WooCommerce Stripe settings (live or test, matching the gateway's mode), or `null`. Your checkout reads it at runtime, so the key never needs to be copied into your Framer project. Secret keys are never read or returned. |
-| `POST /wp-json/fecommerce/v1/reviews` | Creates a product review from your Framer site's review form. Body: `{ productId, rating, review, author, email }`. Goes through WordPress's own comment pipeline, so your moderation, duplicate, flood and spam settings (Akismet etc.) all apply. Respects "Enable reviews", "Ratings required" and "Verified owners only" (refused, since a form on another site can't prove ownership). At most 5 per visitor per 10 minutes. |
+| `POST /wp-json/fecommerce/v1/reviews` | Creates a product review from your Framer site's review form. Body: `{ productId, rating, review, author, email }`. Goes through WordPress's own comment pipeline, so your duplicate, flood and spam settings (Akismet etc.) all apply, and every review is held for moderation whatever your discussion settings. Respects "Enable reviews", "Ratings required" and "Verified owners only" (refused, since a form on another site can't prove ownership). At most 5 per visitor per 10 minutes and 30 per hour store-wide (`define('FECWF_REVIEWS_PER_HOUR', …)` in `wp-config.php` to change). An optional `website` field is a honeypot: when filled in, the review is dropped with a normal-looking answer. |
 
 ## Installation
 
@@ -66,7 +66,8 @@ If Connect fails with "couldn't confirm your site", a security plugin, firewall 
 ### 1.2.0
 - New: **Connect to Framer** (WooCommerce → FeCommerce) issues the store's connection key, now required by the FeCommerce Framer plugin. Regenerate and Disconnect included.
 - New: `GET /fecommerce/v1/challenge`, the one-time domain check used while connecting.
-- New, optional: restrict which sites may use the store's public data.
+- New, optional: restrict which sites may use the store's public data (a browser restriction, not access control).
+- Reviews from the Framer review form are always held for moderation, capped store-wide and screened with a honeypot field.
 - `/status` reports `connect: true`.
 - Deleting the plugin removes its settings and connection (`uninstall.php`).
 - Security: WooCommerce's key-protected REST API (`/wc/v1–v3`) is no longer opened to Framer's addresses, and `Authorization` is no longer an allowed cross-site header. FeCommerce uses only the public Store API.

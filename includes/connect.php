@@ -91,8 +91,16 @@ function fecwf_new_challenge()
  * the service makes is the only one that can succeed. Someone polling this
  * address during the two-minute window can at most make that Connect fail
  * (the admin clicks again); they can't reuse the challenge to request keys or
- * revocations of their own. Responses are never cached, so a page cache or
- * CDN can't replay one either.
+ * revocations of their own, because the service reads the challenge from
+ * this address itself, and by then it is gone. Responses are never cached, so
+ * a page cache or CDN can't replay one either.
+ *
+ * Even a key issued to someone else (say, a cache that ignores no-store
+ * replayed a challenge) is useless: Framer accepts only the key whose sid this
+ * store's /fecommerce/v1/status names, which is the one saved here. And a key
+ * grants nothing secret anyway: it is published with every Framer site that
+ * uses the store. What's left is nuisance: failed Connects, and attempts
+ * counted against the store's daily limit at the service.
  */
 add_action('rest_api_init', function () {
     register_rest_route(FECWF_NAMESPACE, '/challenge', array(
@@ -346,10 +354,10 @@ function fecwf_render_admin_page()
 
             <h3 style="margin-top:24px">Manage</h3>
             <?php
-            fecwf_action_form('fecwf_regenerate', 'Regenerate key', 'button', 'Issue a new connection key? You will need to paste the new key into each Framer project that uses this store.');
-            fecwf_action_form('fecwf_disconnect', 'Disconnect', 'button button-link-delete', 'Disconnect this store from Framer? Published Framer sites keep their key and keep working; to stop them, use "Restrict which sites may use this store" below.');
+            fecwf_action_form('fecwf_regenerate', 'Regenerate key', 'button', 'Issue a new connection key? The old key stops working on published Framer sites within about a minute, so paste the new key into each Framer project that uses this store and republish.');
+            fecwf_action_form('fecwf_disconnect', 'Disconnect', 'button button-link-delete', 'Disconnect this store from Framer? Published Framer sites that use this store stop showing its products within about a minute.');
             ?>
-            <p class="description" style="max-width:720px">Published Framer sites check their key themselves, so Regenerate and Disconnect don't switch off sites that are already live. To stop a site immediately, restrict which sites may use this store below.</p>
+            <p class="description" style="max-width:720px">Framer sites accept only the key this store currently shows, so Regenerate and Disconnect take effect on published sites within about a minute. To stop one particular site while keeping the others, restrict which sites may use this store below.</p>
             <script>
                 (function () {
                     var b = document.getElementById('fecwf-copy'), t = document.getElementById('fecwf-key'), ok = document.getElementById('fecwf-copied');
