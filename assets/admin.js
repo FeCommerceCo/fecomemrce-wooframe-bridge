@@ -11,6 +11,9 @@
     var status = document.getElementById('fecwf-copy-status');
 
     if (key && reveal) {
+        // Rendered as text so the key stays copyable if this script never
+        // runs; hide it now that the eye button works.
+        key.type = 'password';
         reveal.addEventListener('click', function () {
             var show = key.type === 'password';
             key.type = show ? 'text' : 'password';
