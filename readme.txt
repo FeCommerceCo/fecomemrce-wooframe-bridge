@@ -1,8 +1,8 @@
-=== WooCommerce Bridge - FeCommerce Co ===
+=== FeCommerce Bridge for WooCommerce ===
 Contributors: fecommerceco
 Tags: woocommerce, framer, cors, headless, rest-api
 Requires at least: 5.8
-Tested up to: 6.8
+Tested up to: 7.1
 Requires PHP: 7.4
 Stable tag: 1.2.0
 License: GPLv2 or later
@@ -52,7 +52,7 @@ No. Only WooCommerce's Store API, the keyed WooCommerce API (for Framer's own ad
 
 == Copyright ==
 
-WooCommerce Bridge - FeCommerce Co
+FeCommerce Bridge for WooCommerce
 Copyright (C) 2026 FeCommerce (https://fecommerce.co)
 
 This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.
@@ -68,7 +68,7 @@ If you redistribute or modify this plugin, keep this copyright notice and the li
 == Changelog ==
 
 = 1.2.0 =
-* Renamed to WooCommerce Bridge - FeCommerce Co. It now installs in the `woocommerce-bridge-fecommerce-co` folder. Activating it switches the old copy off, and keeps your settings. Then delete the old copy.
+* Renamed to FeCommerce Bridge for WooCommerce. It now installs in the `fecommerce-bridge-for-woocommerce` folder. Activating it switches the old copy off, and keeps your settings. Then delete the old copy.
 * New: Connect to Framer (WooCommerce → FeCommerce) issues the store's connection key, which the FeCommerce Framer plugin now requires. Regenerate and Disconnect included.
 * New endpoint: `GET /fecommerce/v1/challenge`, the one-time domain check used while connecting.
 * New, optional: restrict which sites may use the store's public data (a browser restriction, not access control).

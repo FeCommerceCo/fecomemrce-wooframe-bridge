@@ -162,7 +162,7 @@ add_action('admin_post_fecwf_save_sites', function () {
     }
     check_admin_referer('fecwf_save_sites');
 
-    $lines = preg_split('/[\r\n,]+/', isset($_POST['fecwf_sites']) ? (string) wp_unslash($_POST['fecwf_sites']) : '');
+    $lines = preg_split('/[\r\n,]+/', isset($_POST['fecwf_sites']) ? sanitize_textarea_field(wp_unslash($_POST['fecwf_sites'])) : '');
     $sites = array();
     $rejected = array();
     foreach ($lines as $line) {

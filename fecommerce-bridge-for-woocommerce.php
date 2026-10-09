@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name:       WooCommerce Bridge - FeCommerce Co
+ * Plugin Name:       FeCommerce Bridge for WooCommerce
  * Plugin URI:        https://github.com/FeCommerceCo/fecomemrce-wooframe-bridge
  * Description:       Lets your Framer site and the FeCommerce Framer plugin talk to this WooCommerce store directly, and issues the store's Framer connection key.
  * Version:           1.2.0
@@ -11,7 +11,7 @@
  * Requires at least: 5.8
  * Requires PHP:      7.4
  * Requires Plugins:  woocommerce
- * Text Domain:       woocommerce-bridge-fecommerce-co
+ * Text Domain:       fecommerce-bridge-for-woocommerce
  *
  * Copyright (C) 2026 FeCommerce (https://fecommerce.co)
  *
@@ -35,17 +35,21 @@ if (!defined('ABSPATH')) {
 
 /*
  * Before 1.2.0 this plugin was installed as
- * fecommerce-wooframe/fecommerce-wooframe.php. WordPress treats the renamed
- * plugin as a different one, so both can be installed side by side. Both define
- * the same functions, so only one copy may run. While the old copy is active
- * (it always loads first), this one stays idle and only switches the old copy
- * off when it is activated. The connection and settings carry over because both
- * use the same fecwf_* options. Old releases have no uninstall.php, so deleting
- * the old copy afterwards removes nothing.
+ * fecommerce-wooframe/fecommerce-wooframe.php (and 1.2.0 test builds as
+ * woocommerce-bridge-fecommerce-co/woocommerce-bridge-fecommerce-co.php).
+ * WordPress treats the renamed plugin as a different one, so both can be
+ * installed side by side. Both define the same functions, so only one copy may
+ * run. While an old copy is active, this one stays idle and only switches the
+ * old copies off when it is activated. The connection and settings carry over
+ * because all copies use the same fecwf_* options. Old releases have no
+ * uninstall.php, so deleting the old copy afterwards removes nothing.
  */
 if (defined('FECWF_FILE')) {
     register_activation_hook(__FILE__, function () {
-        deactivate_plugins('fecommerce-wooframe/fecommerce-wooframe.php', true);
+        deactivate_plugins(array(
+            'fecommerce-wooframe/fecommerce-wooframe.php',
+            'woocommerce-bridge-fecommerce-co/woocommerce-bridge-fecommerce-co.php',
+        ), true);
     });
     return;
 }
@@ -129,7 +133,11 @@ function fecwf_current_route()
     if (isset($GLOBALS['wp']) && isset($GLOBALS['wp']->query_vars['rest_route'])) {
         return '/' . ltrim((string) $GLOBALS['wp']->query_vars['rest_route'], '/');
     }
+    // Read-only routing lookup on a public REST request, not form handling, so
+    // there is no nonce to check.
+    // phpcs:ignore WordPress.Security.NonceVerification.Recommended
     if (isset($_GET['rest_route'])) {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         return '/' . ltrim(sanitize_text_field(wp_unslash($_GET['rest_route'])), '/');
     }
     return '';
