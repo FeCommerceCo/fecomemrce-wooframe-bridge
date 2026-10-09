@@ -87,6 +87,14 @@
 .fecwf-pill.is-on::before {
     background: var(--fecwf-green);
 }
+.fecwf-pill.is-warn {
+    background: #fffbeb;
+    border-color: #fcd34d;
+    color: #92400e;
+}
+.fecwf-pill.is-warn::before {
+    background: #f59e0b;
+}
 
 /* Cards */
 .fecwf-card {
