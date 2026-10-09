@@ -20,7 +20,7 @@ Browsers only let a website read another site's data when that site says it may 
 
 **Everything else is unchanged.** Every other REST route keeps WordPress's default behaviour.
 
-**Connection key for Framer.** The FeCommerce Framer plugin only works with stores that have a connection key. Under **WooCommerce → FeCommerce**, click **Connect to Framer**. This plugin then sends your store's address to the FeCommerce connection service (auth.fecommerce.co). The service confirms the address belongs to your site by reading `/wp-json/fecommerce/v1/challenge` once, and signs a key naming your store. Paste the key into the FeCommerce plugin in Framer. The service keeps your store's hostname, a connection id and dates; nothing about your products, orders or customers. It is contacted only when you click Connect, Regenerate or Disconnect.
+**Connection key for Framer.** The FeCommerce Framer plugin only works with stores that have a connection key. Under **WooCommerce → FeCommerce**, click **Connect to Framer**. This plugin then sends your store's address to the FeCommerce connection service (auth.fecommerce.co). The service confirms the address belongs to your site by reading `/wp-json/fecommerce/v1/challenge` once, checks that WooCommerce answers by reading one product id from `/wp-json/wc/store/v1/products`, and signs a key naming your store. Paste the key into the FeCommerce plugin in Framer. The service keeps your store's hostname, a connection id and dates; nothing about your products, orders or customers. It is contacted only when you click Connect, Regenerate or Disconnect.
 
 **Optional: restrict which sites may use your store.** Off by default. When on, only the site addresses you list (plus your own site and Framer's editor) can use your store's product, cart and checkout data.
 
@@ -71,7 +71,7 @@ If you redistribute or modify this plugin, keep this copyright notice and the li
 * New: Connect to Framer (WooCommerce → FeCommerce) issues the store's connection key, which the FeCommerce Framer plugin now requires. Regenerate and Disconnect included.
 * New endpoint: `GET /fecommerce/v1/challenge`, the one-time domain check used while connecting.
 * New, optional: restrict which sites may use the store's public data.
-* `/status` reports `connect: true`.
+* `/status` reports `connect: true` and the current connection key's `sid` (null when disconnected), cached for 60 seconds. FeCommerce in Framer accepts a key only while this matches, so Regenerate and Disconnect stop the old key on published sites.
 * Deleting the plugin removes its settings and connection.
 * Security: WooCommerce's key-protected REST API (/wc/v1-3) is no longer opened to Framer's addresses, and the Authorization header is no longer allowed cross-site. FeCommerce uses only the public Store API.
 * Security: /status reports whether WooCommerce is active instead of its exact version.

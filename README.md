@@ -23,7 +23,7 @@ Browsers only let a website read another site's data when that site says it may 
 
 1. Go to **WooCommerce → FeCommerce** and click **Connect to Framer** (requires `manage_woocommerce`).
 2. The plugin makes a one-time random challenge and sends your store's address (`home_url()`) and the challenge to the FeCommerce connection service, `https://auth.fecommerce.co`.
-3. The service reads `GET /wp-json/fecommerce/v1/challenge` on your store once. Only your server can answer with the challenge, which proves the domain.
+3. The service reads `GET /wp-json/fecommerce/v1/challenge` on your store once. Only your server can answer with the challenge, which proves the domain. It then reads one product id from `GET /wp-json/wc/store/v1/products` to check that WooCommerce answers there.
 4. The service signs a key naming your store. Copy it into the FeCommerce plugin in Framer.
 
 The service is contacted only when an admin clicks **Connect to Framer**, **Regenerate** or **Disconnect**. It keeps your store's hostname, a connection id and dates; nothing about products, orders or customers. Your site address must be HTTPS at the root of the domain (no sub-folder). The key is not a secret and is safe on your published Framer site.
