@@ -200,44 +200,31 @@ function fecwf_render_allowlist_section()
     $sites = fecwf_allowed_sites();
     $seen = array_diff_key(fecwf_seen_sites(), array_flip($sites));
     ?>
-    <h2 style="margin-top:32px">Restrict which sites may use this store</h2>
-    <p style="max-width:720px">Optional. When on, only the websites listed here, plus this store itself and Framer's editor, can show your store's products, cart and checkout to their visitors. Use it to stop one site, for example an old Framer project you no longer want selling from your store. This controls websites, not direct access: your store's public product and cart API stays public, as on every WooCommerce store.</p>
-    <div class="notice notice-warning inline" style="max-width:720px"><p>List <strong>every</strong> address your Framer site is published on (your own domain, its <code>.framer.website</code> or <code>.framer.app</code> address, and any preview address you use). A site that isn't listed loses its products, cart and checkout.</p></div>
+    <div class="fecwf-card">
+    <h2>Restrict which sites may use this store</h2>
+    <p>Optional. When on, only the websites listed here, plus this store itself and Framer's editor, can show your store's products, cart and checkout to their visitors. Use it to stop one site, for example an old Framer project you no longer want selling from your store. This controls websites, not direct access: your store's public product and cart API stays public, as on every WooCommerce store.</p>
+    <div class="notice notice-warning inline"><p>List <strong>every</strong> address your Framer site is published on (your own domain, its <code>.framer.website</code> or <code>.framer.app</code> address, and any preview address you use). A site that isn't listed loses its products, cart and checkout.</p></div>
     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
         <input type="hidden" name="action" value="fecwf_save_sites" />
         <?php wp_nonce_field('fecwf_save_sites'); ?>
-        <table class="form-table" role="presentation">
-            <tr>
-                <th scope="row">Restriction</th>
-                <td><label><input type="checkbox" name="fecwf_restrict" value="1" <?php checked($restrict); ?> /> Only allow the sites listed below</label></td>
-            </tr>
-            <tr>
-                <th scope="row"><label for="fecwf-sites">Allowed sites</label></th>
-                <td>
-                    <textarea id="fecwf-sites" name="fecwf_sites" class="large-text code" rows="5" placeholder="https://www.your-site.com&#10;https://your-site.framer.website"><?php echo esc_textarea(implode("\n", $sites)); ?></textarea>
-                    <p class="description">One address per line, like <code>https://www.your-site.com</code>.</p>
-                    <?php if ($seen) : ?>
-                        <p style="margin-top:12px"><strong>Recently seen using your store:</strong></p>
-                        <p class="description">Only add addresses you recognise as your own sites. Anyone can make a request that appears here.</p>
-                        <p>
-                            <?php foreach (array_keys($seen) as $origin) : ?>
-                                <button type="button" class="button button-small fecwf-add-site" data-site="<?php echo esc_attr($origin); ?>" style="margin:0 6px 6px 0">+ <?php echo esc_html($origin); ?></button>
-                            <?php endforeach; ?>
-                        </p>
-                    <?php endif; ?>
-                </td>
-            </tr>
-        </table>
-        <?php submit_button('Save'); ?>
+        <label class="fecwf-toggle"><input type="checkbox" name="fecwf_restrict" value="1" <?php checked($restrict); ?> /> Only allow the sites listed below</label>
+        <label class="fecwf-label" for="fecwf-sites">Allowed sites</label>
+        <textarea id="fecwf-sites" name="fecwf_sites" class="fecwf-sites" rows="5" placeholder="https://www.your-site.com&#10;https://your-site.framer.website"><?php echo esc_textarea(implode("\n", $sites)); ?></textarea>
+        <p class="fecwf-fine">One address per line, like <code>https://www.your-site.com</code>.</p>
+        <?php if ($seen) : ?>
+            <div class="fecwf-seen">
+                <p><strong>Recently seen using your store.</strong> Only add addresses you recognise as your own sites. Anyone can make a request that appears here.</p>
+                <div class="fecwf-chips">
+                    <?php foreach (array_keys($seen) as $origin) : ?>
+                        <button type="button" class="fecwf-chip fecwf-add-site" data-site="<?php echo esc_attr($origin); ?>">+ <?php echo esc_html($origin); ?></button>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        <?php endif; ?>
+        <div class="fecwf-save">
+            <button type="submit" class="fecwf-btn fecwf-btn-primary">Save</button>
+        </div>
     </form>
-    <script>
-        document.querySelectorAll('.fecwf-add-site').forEach(function (b) {
-            b.addEventListener('click', function () {
-                var t = document.getElementById('fecwf-sites'), s = b.getAttribute('data-site');
-                if (t.value.split(/\s+/).indexOf(s) === -1) t.value = (t.value.trim() ? t.value.trim() + '\n' : '') + s;
-                b.disabled = true;
-            });
-        });
-    </script>
+    </div>
     <?php
 }

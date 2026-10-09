@@ -282,7 +282,17 @@ add_action('admin_post_fecwf_disconnect', function () {
  * ─── Admin screen: WooCommerce → FeCommerce ────────────────────────────────
  */
 add_action('admin_menu', function () {
-    add_submenu_page('woocommerce', 'FeCommerce', 'FeCommerce', 'manage_woocommerce', 'fecwf', 'fecwf_render_admin_page');
+    $hook = add_submenu_page('woocommerce', 'FeCommerce', 'FeCommerce', 'manage_woocommerce', 'fecwf', 'fecwf_render_admin_page');
+    if ($hook) {
+        // Styles and script for this screen only.
+        add_action('admin_enqueue_scripts', function ($current) use ($hook) {
+            if ($current !== $hook) {
+                return;
+            }
+            wp_enqueue_style('fecwf-admin', plugins_url('assets/admin.css', FECWF_FILE), array(), FECWF_VERSION);
+            wp_enqueue_script('fecwf-admin', plugins_url('assets/admin.js', FECWF_FILE), array(), FECWF_VERSION, true);
+        });
+    }
 }, 60);
 
 add_filter('plugin_action_links_' . plugin_basename(FECWF_FILE), function ($links) {
@@ -313,7 +323,7 @@ add_action('admin_notices', function () {
 function fecwf_action_form($action, $label, $class, $confirm = '')
 {
     ?>
-    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block;margin-right:8px"<?php echo $confirm !== '' ? ' onsubmit="return confirm(' . esc_attr(wp_json_encode($confirm)) . ');"' : ''; ?>>
+    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"<?php echo $confirm !== '' ? ' onsubmit="return confirm(' . esc_attr(wp_json_encode($confirm)) . ');"' : ''; ?>>
         <input type="hidden" name="action" value="<?php echo esc_attr($action); ?>" />
         <?php wp_nonce_field($action); ?>
         <button type="submit" class="<?php echo esc_attr($class); ?>"><?php echo esc_html($label); ?></button>
@@ -332,58 +342,72 @@ function fecwf_render_admin_page()
     $connection = fecwf_get_connection();
     $auth_host = wp_parse_url(fecwf_auth_base(), PHP_URL_HOST);
     ?>
-    <div class="wrap">
-        <h1>FeCommerce</h1>
+    <div class="wrap fecwf">
+        <div class="fecwf-header">
+            <img class="fecwf-logo" src="<?php echo esc_url(plugins_url('assets/icon.png', FECWF_FILE)); ?>" alt="" width="44" height="44" />
+            <div class="fecwf-title">
+                <h1>FeCommerce</h1>
+                <p class="fecwf-subtitle">Connect this WooCommerce store to Framer</p>
+            </div>
+            <span class="fecwf-pill<?php echo $connection ? ' is-on' : ''; ?>"><?php echo $connection ? 'Connected' : 'Not connected'; ?></span>
+        </div>
+        <hr class="wp-header-end" />
         <?php if (is_array($notice)) : ?>
             <div class="notice notice-<?php echo esc_attr($notice[0]); ?> is-dismissible"><p><?php echo esc_html($notice[1]); ?></p></div>
         <?php endif; ?>
 
-        <h2>Connect to Framer</h2>
-        <?php if (is_wp_error($origin)) : ?>
-            <div class="notice notice-error inline"><p><?php echo esc_html($origin->get_error_message()); ?></p></div>
-        <?php elseif (!$connection) : ?>
-            <p>The FeCommerce plugin in Framer only works with a store that has a <strong>connection key</strong>. Click below to get one for <code><?php echo esc_html($origin); ?></code>, then paste it into the FeCommerce plugin in Framer.</p>
-            <?php fecwf_action_form('fecwf_connect', 'Connect to Framer', 'button button-primary'); ?>
-            <p class="description" style="margin-top:12px;max-width:720px">
-                Clicking Connect sends your store's address to the FeCommerce connection service (<code><?php echo esc_html($auth_host); ?></code>).
-                The service confirms the address belongs to this site by reading <code>/wp-json/fecommerce/v1/challenge</code> once, checks that WooCommerce answers by reading one product id from <code>/wp-json/wc/store/v1/products</code>, then signs your key.
-                It keeps your store's hostname, a connection id and the dates; nothing else about your store or customers.
-            </p>
-        <?php else : ?>
-            <p>Connected as <code><?php echo esc_html($connection['store']); ?></code> since <?php echo esc_html(wp_date(get_option('date_format'), (int) $connection['issued_at'])); ?>.</p>
-            <p><label for="fecwf-key"><strong>Connection key</strong></label></p>
-            <textarea id="fecwf-key" class="large-text code" rows="4" readonly onclick="this.select()"><?php echo esc_textarea($connection['key']); ?></textarea>
-            <p>
-                <button type="button" class="button button-primary" id="fecwf-copy">Copy key</button>
-                <span id="fecwf-copied" style="margin-left:8px;color:#008a20;display:none">Copied</span>
-            </p>
-            <ol style="max-width:720px">
-                <li>In Framer, open the <strong>FeCommerce</strong> plugin.</li>
-                <li>Paste the key into <strong>Connection key</strong> and click <strong>Connect</strong>.</li>
-            </ol>
-            <p class="description" style="max-width:720px">This key isn't a password: it only proves to FeCommerce that this store is yours. It's safe on your published Framer site.</p>
+        <div class="fecwf-card">
+            <h2>Connect to Framer</h2>
+            <?php if (is_wp_error($origin)) : ?>
+                <div class="notice notice-error inline"><p><?php echo esc_html($origin->get_error_message()); ?></p></div>
+            <?php elseif (!$connection) : ?>
+                <p>The FeCommerce plugin in Framer only works with a store that has a <strong>connection key</strong>. Click below to get one for <code><?php echo esc_html($origin); ?></code>, then paste it into the FeCommerce plugin in Framer.</p>
+                <div class="fecwf-actions">
+                    <?php fecwf_action_form('fecwf_connect', 'Connect to Framer', 'fecwf-btn fecwf-btn-primary'); ?>
+                </div>
+                <p class="fecwf-fine">
+                    Clicking Connect sends your store's address to the FeCommerce connection service (<code><?php echo esc_html($auth_host); ?></code>).
+                    The service confirms the address belongs to this site by reading <code>/wp-json/fecommerce/v1/challenge</code> once, checks that WooCommerce answers by reading one product id from <code>/wp-json/wc/store/v1/products</code>, then signs your key.
+                    It keeps your store's hostname, a connection id and the dates; nothing else about your store or customers.
+                </p>
+            <?php else : ?>
+                <div class="fecwf-meta">
+                    <div><span>Store</span><strong title="<?php echo esc_attr($connection['store']); ?>"><?php echo esc_html($connection['store']); ?></strong></div>
+                    <div><span>Connected since</span><strong><?php echo esc_html(wp_date(get_option('date_format'), (int) $connection['issued_at'])); ?></strong></div>
+                </div>
 
-            <h3 style="margin-top:24px">Manage</h3>
-            <?php
-            fecwf_action_form('fecwf_regenerate', 'Regenerate key', 'button', 'Issue a new connection key? The old key stops working on published Framer sites within about a minute, so paste the new key into each Framer project that uses this store and republish.');
-            fecwf_action_form('fecwf_disconnect', 'Disconnect', 'button button-link-delete', 'Disconnect this store from Framer? Published Framer sites that use this store stop showing its products within about a minute.');
-            ?>
-            <p class="description" style="max-width:720px">Framer sites accept only the key this store currently shows, so Regenerate and Disconnect take effect on published sites within about a minute. To stop one particular site while keeping the others, restrict which sites may use this store below.</p>
-            <script>
-                (function () {
-                    var b = document.getElementById('fecwf-copy'), t = document.getElementById('fecwf-key'), ok = document.getElementById('fecwf-copied');
-                    if (!b || !t) return;
-                    b.addEventListener('click', function () {
-                        var done = function () { ok.style.display = 'inline'; setTimeout(function () { ok.style.display = 'none'; }, 2000); };
-                        if (navigator.clipboard && window.isSecureContext) {
-                            navigator.clipboard.writeText(t.value).then(done, function () { t.select(); });
-                        } else {
-                            t.select();
-                            try { document.execCommand('copy'); done(); } catch (e) {}
-                        }
-                    });
-                })();
-            </script>
+                <label class="fecwf-label" for="fecwf-key">Connection key</label>
+                <div class="fecwf-key">
+                    <input type="password" id="fecwf-key" value="<?php echo esc_attr($connection['key']); ?>" readonly autocomplete="off" spellcheck="false" />
+                    <button type="button" class="fecwf-icon-btn" id="fecwf-reveal" aria-label="Show key" aria-pressed="false" aria-controls="fecwf-key">
+                        <span class="fecwf-when-off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span>
+                        <span class="fecwf-when-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.9 4.24A9.1 9.1 0 0 1 12 4c6.5 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19M6.6 6.6A18.4 18.4 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M2 2l20 20"/></svg></span>
+                    </button>
+                    <button type="button" class="fecwf-icon-btn fecwf-copy" id="fecwf-copy">
+                        <span class="fecwf-when-off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span class="fecwf-btn-text">Copy</span></span>
+                        <span class="fecwf-when-on" role="status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg><span class="fecwf-btn-text">Copied</span></span>
+                    </button>
+                </div>
+
+                <ol class="fecwf-steps">
+                    <li>In Framer, open the <strong>FeCommerce</strong> plugin.</li>
+                    <li>Paste the key into <strong>Connection key</strong> and click <strong>Connect</strong>.</li>
+                </ol>
+                <p class="fecwf-fine">This key isn't a password: it only proves to FeCommerce that this store is yours. It's safe on your published Framer site.</p>
+            <?php endif; ?>
+        </div>
+
+        <?php if ($connection && !is_wp_error($origin)) : ?>
+            <div class="fecwf-card">
+                <h2>Manage</h2>
+                <p>Framer sites accept only the key this store currently shows, so Regenerate and Disconnect take effect on published sites within about a minute. To stop one particular site while keeping the others, restrict which sites may use this store below.</p>
+                <div class="fecwf-actions">
+                    <?php
+                    fecwf_action_form('fecwf_regenerate', 'Regenerate key', 'fecwf-btn', 'Issue a new connection key? The old key stops working on published Framer sites within about a minute, so paste the new key into each Framer project that uses this store and republish.');
+                    fecwf_action_form('fecwf_disconnect', 'Disconnect', 'fecwf-btn fecwf-btn-danger', 'Disconnect this store from Framer? Published Framer sites that use this store stop showing its products within about a minute.');
+                    ?>
+                </div>
+            </div>
         <?php endif; ?>
 
         <?php fecwf_render_allowlist_section(); ?>
