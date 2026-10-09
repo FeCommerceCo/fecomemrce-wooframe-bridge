@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name:       FeCommerce Bridge for WooCommerce
- * Plugin URI:        https://github.com/FeCommerceCo/fecomemrce-wooframe-bridge
+ * Plugin URI:        https://www.fecommerce.co/products/plugins/woocommerce
  * Description:       Lets your Framer site and the FeCommerce Framer plugin talk to this WooCommerce store directly, and issues the store's Framer connection key.
  * Version:           1.2.0
  * Author:            FeCommerce Co
