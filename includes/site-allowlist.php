@@ -216,9 +216,10 @@ function fecwf_render_allowlist_section()
                 <p><strong>Recently seen using your store.</strong> Only add addresses you recognise as your own sites. Anyone can make a request that appears here.</p>
                 <div class="fecwf-chips">
                     <?php foreach (array_keys($seen) as $origin) : ?>
-                        <button type="button" class="fecwf-chip fecwf-add-site" data-site="<?php echo esc_attr($origin); ?>">+ <?php echo esc_html($origin); ?></button>
+                        <button type="button" class="fecwf-chip fecwf-add-site" data-site="<?php echo esc_attr($origin); ?>" aria-label="<?php echo esc_attr('Add ' . $origin . ' to allowed sites'); ?>">+ <?php echo esc_html($origin); ?></button>
                     <?php endforeach; ?>
                 </div>
+                <span class="screen-reader-text" id="fecwf-sites-status" role="status" aria-live="polite"></span>
             </div>
         <?php endif; ?>
         <div class="fecwf-save">
