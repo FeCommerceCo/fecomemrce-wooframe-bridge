@@ -63,6 +63,17 @@ If Connect fails with "couldn't confirm your site", a security plugin, firewall 
 - PHP 7.4+
 - WooCommerce (active)
 
+## Building the release ZIP
+
+Build from a tag with `git archive`, never by hand-picking files:
+
+```bash
+git archive --format=zip --prefix=woocommerce-bridge-fecommerce-co/ \
+  -o woocommerce-bridge-fecommerce-co-<version>.zip v<version>
+```
+
+This includes every tracked plugin file, `assets/` too, in the folder WordPress expects. Files marked `export-ignore` in `.gitattributes` are left out. Before uploading the release, open the ZIP and check that `assets/` is there.
+
 ## Changelog
 
 ### 1.2.0
