@@ -213,7 +213,8 @@ add_action('rest_api_init', function () {
         'methods' => 'GET',
         'permission_callback' => '__return_true',
         'callback' => function () {
-            return rest_ensure_response(array(
+            $connection = fecwf_get_connection();
+            $response = rest_ensure_response(array(
                 'plugin' => 'fecommerce-wooframe',
                 'version' => FECWF_VERSION,
                 // Whether WooCommerce is active, not its version: an exact
@@ -221,7 +222,18 @@ add_action('rest_api_init', function () {
                 'woocommerce' => defined('WC_VERSION'),
                 'stripe' => fecwf_stripe_publishable_key() !== null,
                 'connect' => true,
+                // The id of this store's current connection key, or null when
+                // disconnected. The Framer plugin and components accept a key
+                // only while the store still names it here, so Regenerate and
+                // Disconnect take effect without asking FeCommerce. Not a
+                // secret: it is inside the key, which is published with every
+                // Framer site that uses it.
+                'sid' => $connection ? $connection['sid'] : null,
             ));
+            // Short, so a regenerated or disconnected key stops working
+            // within about a minute.
+            $response->header('Cache-Control', 'public, max-age=60');
+            return $response;
         },
     ));
 

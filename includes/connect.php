@@ -121,6 +121,7 @@ function fecwf_service_message($code)
         'store_unreachable' => 'The connection service couldn\'t reach your site. Make sure it\'s online and publicly reachable, then try again.',
         'store_redirects' => 'Your site address redirects somewhere else (for example to or from www). Set Settings → General → Site Address to the address your site actually loads on, then try again.',
         'challenge_failed' => 'The connection service couldn\'t confirm your site. A security plugin, firewall or cache may be blocking or caching /wp-json/fecommerce/v1/challenge. Allow that address, then try again.',
+        'not_woocommerce' => 'The connection service couldn\'t reach your store\'s WooCommerce Store API (/wp-json/wc/store/v1/products). Make sure WooCommerce is active and that no security plugin or firewall blocks that address, then try again.',
         'rate_limited' => 'Too many attempts. Wait a few minutes and try again.',
         'unknown_sid' => 'The connection service doesn\'t recognise this connection.',
     );
@@ -224,7 +225,7 @@ add_action('admin_post_fecwf_connect', function () {
         if (is_wp_error($connection)) {
             fecwf_flash('error', $connection->get_error_message());
         } else {
-            update_option(FECWF_CONNECTION_OPTION, $connection, false);
+            update_option(FECWF_CONNECTION_OPTION, $connection, true);
             fecwf_flash('success', 'Connected. Copy the connection key below into the FeCommerce plugin in Framer.');
         }
     }
@@ -239,7 +240,7 @@ add_action('admin_post_fecwf_regenerate', function () {
     if (is_wp_error($new)) {
         fecwf_flash('error', $new->get_error_message() . ' Your current key is unchanged.');
     } else {
-        update_option(FECWF_CONNECTION_OPTION, $new, false);
+        update_option(FECWF_CONNECTION_OPTION, $new, true);
         $note = '';
         if ($old) {
             $revoked = fecwf_revoke($old);
@@ -326,7 +327,7 @@ function fecwf_render_admin_page()
             <?php fecwf_action_form('fecwf_connect', 'Connect to Framer', 'button button-primary'); ?>
             <p class="description" style="margin-top:12px;max-width:720px">
                 Clicking Connect sends your store's address to the FeCommerce connection service (<code><?php echo esc_html($auth_host); ?></code>).
-                The service confirms the address belongs to this site by reading <code>/wp-json/fecommerce/v1/challenge</code> once, then signs your key.
+                The service confirms the address belongs to this site by reading <code>/wp-json/fecommerce/v1/challenge</code> once, checks that WooCommerce answers by reading one product id from <code>/wp-json/wc/store/v1/products</code>, then signs your key.
                 It keeps your store's hostname, a connection id and the dates; nothing else about your store or customers.
             </p>
         <?php else : ?>
