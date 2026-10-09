@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       fecommerce-wooframe-bridge
  * Plugin URI:        https://github.com/FeCommerceCo/fecomemrce-wooframe-bridge
- * Description:       Lets your Framer site and the FeCommerce Framer plugin talk to this WooCommerce store directly.
- * Version:           1.1.1
+ * Description:       Lets your Framer site and the FeCommerce Framer plugin talk to this WooCommerce store directly, and issues the store's Framer connection key.
+ * Version:           1.2.0
  * Author:            FeCommerce
  * Author URI:        https://fecommerce.co
  * License:           GPL-2.0-or-later
@@ -18,8 +18,12 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('FECWF_VERSION', '1.1.1');
+define('FECWF_VERSION', '1.2.0');
 define('FECWF_NAMESPACE', 'fecommerce/v1');
+define('FECWF_FILE', __FILE__);
+
+require_once __DIR__ . '/includes/connect.php';
+require_once __DIR__ . '/includes/site-allowlist.php';
 
 /*
  * ─── Who may call what ─────────────────────────────────────────────────────
@@ -42,6 +46,9 @@ define('FECWF_NAMESPACE', 'fecommerce/v1');
  *
  * Every other REST request, and every other origin on the keyed API, keeps
  * WordPress's default CORS behaviour. Nothing else on the store is affected.
+ *
+ * The store admin can optionally restrict (1) to a list of sites
+ * (includes/site-allowlist.php). It is off by default.
  */
 
 /**
@@ -146,7 +153,7 @@ add_filter('allowed_http_origin', function ($allowed, $origin) {
     }
     $route = fecwf_current_route();
     if (fecwf_is_public_route($route)) {
-        return $origin;
+        return fecwf_public_origin_allowed($origin) ? $origin : $allowed;
     }
     if (fecwf_is_keyed_route($route) && fecwf_is_framer_origin($origin)) {
         return $origin;
@@ -163,6 +170,17 @@ add_filter('rest_pre_serve_request', function ($served, $result = null, $request
         return $served;
     }
     $route = ($request instanceof WP_REST_Request) ? $request->get_route() : fecwf_current_route();
+
+    // A site the store admin hasn't allowed (only when restriction is on) gets
+    // no Access-Control-Allow-Origin naming it, so its browser can't read the
+    // response. WordPress core echoes any origin by default, hence the removal.
+    if (fecwf_is_public_route($route) && !fecwf_public_origin_allowed($origin)) {
+        if (!headers_sent()) {
+            header_remove('Access-Control-Allow-Origin');
+            header_remove('Access-Control-Allow-Credentials');
+        }
+        return $served;
+    }
 
     $public = fecwf_is_public_route($route);
     $keyed = fecwf_is_keyed_route($route) && fecwf_is_framer_origin($origin);
@@ -198,6 +216,7 @@ add_action('rest_api_init', function () {
                 'version' => FECWF_VERSION,
                 'woocommerce' => defined('WC_VERSION') ? WC_VERSION : null,
                 'stripe' => fecwf_stripe_publishable_key() !== null,
+                'connect' => true,
             ));
         },
     ));
