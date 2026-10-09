@@ -107,4 +107,4 @@ The full license text is in [LICENSE](LICENSE), and at <https://www.gnu.org/lice
 
 ## Author
 
-[FeCommerce](https://fecommerce.co)
+[FeCommerce Co](https://fecommerce.co)
