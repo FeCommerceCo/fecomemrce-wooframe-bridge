@@ -4,7 +4,7 @@
  * Plugin URI:        https://github.com/FeCommerceCo/fecomemrce-wooframe-bridge
  * Description:       Lets your Framer site and the FeCommerce Framer plugin talk to this WooCommerce store directly, and issues the store's Framer connection key.
  * Version:           1.2.0
- * Author:            FeCommerce
+ * Author:            FeCommerce Co
  * Author URI:        https://fecommerce.co
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
