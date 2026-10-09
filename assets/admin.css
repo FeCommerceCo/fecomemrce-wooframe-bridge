@@ -28,6 +28,7 @@
 /* Header */
 .fecwf-header {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 14px;
     margin: 16px 0 20px;
@@ -40,7 +41,7 @@
     display: block;
 }
 .fecwf-title {
-    flex: 1;
+    flex: 1 1 180px;
     min-width: 0;
 }
 .fecwf .fecwf-title h1 {
