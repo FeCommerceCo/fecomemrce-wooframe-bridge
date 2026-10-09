@@ -178,7 +178,7 @@ function fecwf_register()
     $key = isset($data['key']) ? (string) $data['key'] : '';
     $sid = isset($data['sid']) ? (string) $data['sid'] : '';
     $store = isset($data['store']) ? (string) $data['store'] : '';
-    if (strpos($key, 'fec1.') !== 0 || strlen($key) > 1024 || !preg_match('/^[a-z2-7]{26}$/', $sid) || $store !== $origin) {
+    if (!preg_match('/^fec1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/D', $key) || strlen($key) > 1024 || !preg_match('/^[a-z2-7]{26}$/', $sid) || $store !== $origin) {
         return new WP_Error('fecwf_bad_response', 'The connection service returned an unexpected answer. Try again in a few minutes.');
     }
     return array(
