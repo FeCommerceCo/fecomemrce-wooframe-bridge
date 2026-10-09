@@ -4,7 +4,7 @@ Tags: woocommerce, framer, cors, headless, rest-api
 Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.2.0
+Stable tag: 1.2.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -67,6 +67,11 @@ If you redistribute or modify this plugin, keep this copyright notice and the li
 
 == Changelog ==
 
+= 1.2.1 =
+* Redesigned WooCommerce → FeCommerce screen in FeCommerce's colours: status badge, cards, and a connection key that's hidden until you click the eye button, with a Copy button.
+* The screen's styles and scripts are now files in `assets/`, loaded only on that screen. No inline scripts remain.
+* Accessibility: labelled buttons, a "Key copied" announcement for screen readers, visible keyboard focus and stronger text contrast. The layout mirrors correctly in right-to-left languages.
+
 = 1.2.0 =
 * Renamed to FeCommerce Bridge for WooCommerce. It now installs in the `fecommerce-bridge-for-woocommerce` folder. Activating it switches the old copy off, and keeps your settings. Then delete the old copy.
 * New: Connect to Framer (WooCommerce → FeCommerce) issues the store's connection key, which the FeCommerce Framer plugin now requires. Regenerate and Disconnect included.
@@ -95,6 +100,9 @@ If you redistribute or modify this plugin, keep this copyright notice and the li
 * Initial release.
 
 == Upgrade Notice ==
+
+= 1.2.1 =
+Redesigned settings screen with show/hide and Copy for the connection key. Safe to update.
 
 = 1.2.0 =
 Required by the FeCommerce Framer plugin. Upload and activate it, delete the old fecommerce-wooframe-bridge plugin, then go to WooCommerce → FeCommerce and click Connect to Framer.
