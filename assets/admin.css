@@ -254,6 +254,16 @@
     outline-offset: -4px;
 }
 
+.fecwf-copy-error {
+    margin: 6px 0 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #b91c1c;
+}
+.fecwf-copy-error[hidden] {
+    display: none;
+}
+
 /* Steps */
 .fecwf-steps {
     list-style: none;

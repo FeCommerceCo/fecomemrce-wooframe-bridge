@@ -9,6 +9,7 @@
     var reveal = document.getElementById('fecwf-reveal');
     var copy = document.getElementById('fecwf-copy');
     var status = document.getElementById('fecwf-copy-status');
+    var error = document.getElementById('fecwf-copy-error');
 
     if (key && reveal) {
         // Rendered as text so the key stays copyable if this script never
@@ -25,6 +26,7 @@
     if (key && copy) {
         var timer;
         var done = function () {
+            if (error) error.hidden = true;
             copy.classList.add('is-on');
             if (status) status.textContent = 'Key copied';
             clearTimeout(timer);
@@ -34,14 +36,29 @@
             }, 2000);
         };
         // Copies the real key whether it's shown or hidden.
+        // Leaves the key shown and selected so it can be copied by hand.
+        var failed = function () {
+            if (key.type === 'password') {
+                if (reveal) reveal.click(); else key.type = 'text';
+            }
+            key.focus();
+            key.select();
+            if (error) error.hidden = false;
+            if (status) status.textContent = error ? error.textContent : "Couldn't copy the key.";
+        };
         var fallback = function () {
-            var was = key.type;
+            var was = key.type, ok = false;
             key.type = 'text';
             key.select();
-            try { if (document.execCommand('copy')) done(); } catch (e) {}
+            try { ok = document.execCommand('copy'); } catch (e) {}
             key.type = was;
+            if (!ok) {
+                failed();
+                return;
+            }
             key.setSelectionRange(0, 0);
             copy.focus();
+            done();
         };
         copy.addEventListener('click', function () {
             if (navigator.clipboard && window.isSecureContext) {
