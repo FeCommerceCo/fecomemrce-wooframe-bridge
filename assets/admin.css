@@ -178,6 +178,8 @@
 .fecwf-key:focus-within {
     border-color: var(--fecwf-accent);
     box-shadow: 0 0 0 3px rgba(62, 62, 65, 0.18);
+    /* Invisible normally; Windows High Contrast drops the shadow above and shows this instead. */
+    outline: 2px solid transparent;
 }
 .fecwf .fecwf-key input {
     flex: 1;
