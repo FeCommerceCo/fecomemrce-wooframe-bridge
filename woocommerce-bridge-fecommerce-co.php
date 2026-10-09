@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name:       fecommerce-wooframe-bridge
+ * Plugin Name:       WooCommerce Bridge - FeCommerce Co
  * Plugin URI:        https://github.com/FeCommerceCo/fecomemrce-wooframe-bridge
  * Description:       Lets your Framer site and the FeCommerce Framer plugin talk to this WooCommerce store directly, and issues the store's Framer connection key.
  * Version:           1.2.0
@@ -11,7 +11,7 @@
  * Requires at least: 5.8
  * Requires PHP:      7.4
  * Requires Plugins:  woocommerce
- * Text Domain:       fecommerce-wooframe
+ * Text Domain:       woocommerce-bridge-fecommerce-co
  *
  * Copyright (C) 2026 FeCommerce (https://fecommerce.co)
  *
@@ -31,6 +31,23 @@
 
 if (!defined('ABSPATH')) {
     exit;
+}
+
+/*
+ * Before 1.2.0 this plugin was installed as
+ * fecommerce-wooframe/fecommerce-wooframe.php. WordPress treats the renamed
+ * plugin as a different one, so both can be installed side by side. Both define
+ * the same functions, so only one copy may run. While the old copy is active
+ * (it always loads first), this one stays idle and only switches the old copy
+ * off when it is activated. The connection and settings carry over because both
+ * use the same fecwf_* options. Old releases have no uninstall.php, so deleting
+ * the old copy afterwards removes nothing.
+ */
+if (defined('FECWF_FILE')) {
+    register_activation_hook(__FILE__, function () {
+        deactivate_plugins('fecommerce-wooframe/fecommerce-wooframe.php', true);
+    });
+    return;
 }
 
 define('FECWF_VERSION', '1.2.0');

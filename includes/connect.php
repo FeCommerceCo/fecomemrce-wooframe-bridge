@@ -299,6 +299,17 @@ add_action('admin_notices', function () {
     echo '<div class="notice notice-info"><p><strong>FeCommerce:</strong> connect this store to Framer to get your connection key. <a href="' . esc_url(fecwf_admin_url()) . '">Connect to Framer</a></p></div>';
 });
 
+// The copy installed under the plugin's old name (before 1.2.0) is switched off
+// on activation but stays installed. Ask for it to be deleted.
+add_action('admin_notices', function () {
+    $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+    if (!$screen || $screen->id !== 'plugins' || !current_user_can('delete_plugins')
+        || !file_exists(WP_PLUGIN_DIR . '/fecommerce-wooframe/fecommerce-wooframe.php')) {
+        return;
+    }
+    echo '<div class="notice notice-warning"><p><strong>FeCommerce:</strong> the old <em>fecommerce-wooframe-bridge</em> plugin is still installed. It is no longer used, and you can delete it. Your connection and settings are kept.</p></div>';
+});
+
 function fecwf_action_form($action, $label, $class, $confirm = '')
 {
     ?>
