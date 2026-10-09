@@ -13,9 +13,18 @@
  * Requests without an Origin header (servers, command-line tools) are not
  * browser cross-site requests and are unaffected, as the data is public.
  *
- * To help the admin build the list, the addresses of sites recently seen
- * calling the store are remembered (at most 20, refreshed at most daily per
- * address, so this costs almost no database writes).
+ * To help the admin build the list, the addresses of HTTPS sites recently
+ * seen calling the store are remembered (at most 20). Anyone can send a
+ * request with any Origin header, so this list is only a suggestion the admin
+ * must check, and it is written at most once every 5 minutes so it can't be
+ * used to flood the database.
+ *
+ * The three settings are small and stored with autoload, so checking them on
+ * every Store API request costs no extra database query.
+ *
+ * Copyright (C) 2026 FeCommerce (https://fecommerce.co)
+ * Licensed under the GNU General Public License v2 or later (GPL-2.0-or-later).
+ * See the LICENSE file in the plugin's root folder.
  */
 
 if (!defined('ABSPATH')) {
@@ -26,6 +35,7 @@ define('FECWF_RESTRICT_OPTION', 'fecwf_restrict_sites');
 define('FECWF_ALLOWED_SITES_OPTION', 'fecwf_allowed_sites');
 define('FECWF_SEEN_SITES_OPTION', 'fecwf_seen_sites');
 define('FECWF_MAX_SEEN_SITES', 20);
+define('FECWF_SEEN_WRITE_INTERVAL', 5 * MINUTE_IN_SECONDS);
 
 /** "https://Shop.Example.com:443/" → "https://shop.example.com", or '' when not a web origin. */
 function fecwf_normalize_origin($raw)
@@ -57,6 +67,17 @@ function fecwf_allowed_sites()
     return is_array($list) ? $list : array();
 }
 
+/** Recently seen sites: origin => last seen (unix time). */
+function fecwf_seen_sites()
+{
+    $seen = get_option(FECWF_SEEN_SITES_OPTION, array());
+    if (!is_array($seen)) {
+        return array();
+    }
+    unset($seen['__last_write']);
+    return $seen;
+}
+
 /** This WordPress site's own origins (home and site URL can differ). */
 function fecwf_own_origins()
 {
@@ -86,17 +107,25 @@ function fecwf_note_seen_origin($origin)
         return;
     }
     $origin = fecwf_normalize_origin($origin);
-    if ($origin === '' || in_array($origin, fecwf_own_origins(), true)) {
+    if ($origin === '' || strpos($origin, 'https://') !== 0 || in_array($origin, fecwf_own_origins(), true)) {
         return;
     }
-    $seen = get_option(FECWF_SEEN_SITES_OPTION, array());
-    $seen = is_array($seen) ? $seen : array();
-    if (isset($seen[$origin]) && $seen[$origin] > time() - DAY_IN_SECONDS) {
+    $stored = get_option(FECWF_SEEN_SITES_OPTION, array());
+    $stored = is_array($stored) ? $stored : array();
+    $last_write = isset($stored['__last_write']) ? (int) $stored['__last_write'] : 0;
+    $now = time();
+    if (isset($stored[$origin]) && $stored[$origin] > $now - DAY_IN_SECONDS) {
         return; // seen today already: no write
     }
-    $seen[$origin] = time();
-    arsort($seen);
-    update_option(FECWF_SEEN_SITES_OPTION, array_slice($seen, 0, FECWF_MAX_SEEN_SITES, true), false);
+    if ($now - $last_write < FECWF_SEEN_WRITE_INTERVAL) {
+        return; // throttled: at most one write per interval, whatever the traffic
+    }
+    unset($stored['__last_write']);
+    $stored[$origin] = $now;
+    arsort($stored);
+    $stored = array_slice($stored, 0, FECWF_MAX_SEEN_SITES, true);
+    $stored['__last_write'] = $now;
+    update_option(FECWF_SEEN_SITES_OPTION, $stored, true);
 }
 
 /*
@@ -143,8 +172,8 @@ add_action('admin_post_fecwf_save_sites', function () {
     $sites = array_slice(array_values(array_unique($sites)), 0, 50);
     $restrict = !empty($_POST['fecwf_restrict']);
 
-    update_option(FECWF_ALLOWED_SITES_OPTION, $sites, false);
-    update_option(FECWF_RESTRICT_OPTION, $restrict ? 'yes' : 'no', false);
+    update_option(FECWF_ALLOWED_SITES_OPTION, $sites, true);
+    update_option(FECWF_RESTRICT_OPTION, $restrict ? 'yes' : 'no', true);
 
     $message = $restrict
         ? ($sites ? 'Saved. Only the listed sites (plus this store and Framer) may use this store.' : 'Saved. No sites are listed, so only this store and Framer may use it: every published Framer site is now blocked.')
@@ -161,8 +190,7 @@ function fecwf_render_allowlist_section()
 {
     $restrict = fecwf_restricting();
     $sites = fecwf_allowed_sites();
-    $seen = get_option(FECWF_SEEN_SITES_OPTION, array());
-    $seen = is_array($seen) ? array_diff_key($seen, array_flip($sites)) : array();
+    $seen = array_diff_key(fecwf_seen_sites(), array_flip($sites));
     ?>
     <h2 style="margin-top:32px">Restrict which sites may use this store</h2>
     <p style="max-width:720px">Optional. When on, your store's product, cart and checkout data can only be used by the sites listed here, plus this store itself and Framer's editor. Use it to stop a site immediately, for example an old Framer project you no longer want selling from your store.</p>
@@ -182,6 +210,7 @@ function fecwf_render_allowlist_section()
                     <p class="description">One address per line, like <code>https://www.your-site.com</code>.</p>
                     <?php if ($seen) : ?>
                         <p style="margin-top:12px"><strong>Recently seen using your store:</strong></p>
+                        <p class="description">Only add addresses you recognise as your own sites. Anyone can make a request that appears here.</p>
                         <p>
                             <?php foreach (array_keys($seen) as $origin) : ?>
                                 <button type="button" class="button button-small fecwf-add-site" data-site="<?php echo esc_attr($origin); ?>" style="margin:0 6px 6px 0">+ <?php echo esc_html($origin); ?></button>

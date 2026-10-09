@@ -1,6 +1,10 @@
 <?php
 /**
  * Removes everything this plugin stored when it is deleted.
+ *
+ * Copyright (C) 2026 FeCommerce (https://fecommerce.co)
+ * Licensed under the GNU General Public License v2 or later (GPL-2.0-or-later).
+ * See the LICENSE file in the plugin's root folder.
  */
 if (!defined('WP_UNINSTALL_PLUGIN')) {
     exit;

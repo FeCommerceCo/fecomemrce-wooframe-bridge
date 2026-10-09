@@ -12,6 +12,21 @@
  * Requires PHP:      7.4
  * Requires Plugins:  woocommerce
  * Text Domain:       fecommerce-wooframe
+ *
+ * Copyright (C) 2026 FeCommerce (https://fecommerce.co)
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+ * details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program; if not, see <https://www.gnu.org/licenses/>.
  */
 
 if (!defined('ABSPATH')) {
@@ -28,32 +43,30 @@ require_once __DIR__ . '/includes/site-allowlist.php';
 /*
  * ─── Who may call what ─────────────────────────────────────────────────────
  *
- * Two kinds of REST request reach this store from Framer:
+ * PUBLIC STORE DATA is the only thing opened to other sites: WooCommerce's
+ * Store API (/wc/store/...) and this plugin's own /fecommerce/v1 routes.
+ * Products, categories and the shopper's cart, which the published Framer
+ * site reads directly. A merchant's site can live on any domain (their own,
+ * *.framer.app, *.framer.website), so ANY origin may read these, but never
+ * with cookies: the credentials header is removed, so another website cannot
+ * read a logged-in customer's session. FeCommerce components carry their cart
+ * in the Cart-Token header instead, which needs no cookies.
  *
- *   1. PUBLIC STORE DATA: WooCommerce's Store API (/wc/store/...) and this
- *      plugin's own /fecommerce/v1 routes. Products, categories and the
- *      shopper's cart, which the published Framer site reads directly. A
- *      merchant's site can live on any domain (their own, *.framer.app,
- *      *.framer.website), so ANY origin may read these, but never with
- *      cookies: the credentials header is removed, so another website cannot
- *      read a logged-in customer's session. FeCommerce components carry their
- *      cart in the Cart-Token header instead, which needs no cookies.
+ * WooCommerce's key-protected REST API (/wc/v1-3/...) is NOT opened: the
+ * FeCommerce Framer plugin uses only the public Store API and holds no API
+ * keys. (Bridge 1.1 opened it to Framer's origins; 1.2 removes that.)
  *
- *   2. KEYED REST API (/wc/v1-3/...): the FeCommerce Framer plugin's catalogue
- *      sync, authenticated with the merchant's API keys in the Authorization
- *      header. Only Framer's own origins (the plugin sandbox, the editor and
- *      canvas) are allowed.
- *
- * Every other REST request, and every other origin on the keyed API, keeps
- * WordPress's default CORS behaviour. Nothing else on the store is affected.
- *
- * The store admin can optionally restrict (1) to a list of sites
- * (includes/site-allowlist.php). It is off by default.
+ * Every other REST request keeps WordPress's default CORS behaviour. Nothing
+ * else on the store is affected. The store admin can optionally restrict the
+ * public routes to a list of sites (includes/site-allowlist.php). It is off by
+ * default.
  */
 
 /**
- * Framer's own origins: the plugin sandbox, the editor and the canvas.
- * localhost is allowed only with WP_DEBUG on, for plugin development.
+ * Framer's own origins: the plugin sandbox, the editor and the canvas. Always
+ * allowed to read the public routes, even when the admin restricts them, so
+ * syncing from Framer keeps working. localhost only with WP_DEBUG on, for
+ * plugin development.
  */
 function fecwf_is_framer_origin($origin)
 {
@@ -83,12 +96,6 @@ function fecwf_is_public_route($route)
         strpos($route, '/wc/store/') === 0 ||
         strpos($route, '/' . FECWF_NAMESPACE . '/') === 0
     );
-}
-
-/** WooCommerce's keyed REST API. */
-function fecwf_is_keyed_route($route)
-{
-    return is_string($route) && (bool) preg_match('#^/wc/v[123]/#', $route);
 }
 
 /**
@@ -126,7 +133,7 @@ function fecwf_is_same_site($origin)
 add_filter('rest_allowed_cors_headers', function ($headers) {
     return array_values(array_unique(array_merge(
         (array) $headers,
-        array('Authorization', 'Content-Type', 'X-WP-Nonce', 'Cart-Token', 'Nonce', 'X-WC-Store-API-Nonce')
+        array('Content-Type', 'Cart-Token', 'Nonce', 'X-WC-Store-API-Nonce')
     )));
 });
 
@@ -144,8 +151,8 @@ add_filter('rest_exposed_cors_headers', function ($headers) {
 
 /**
  * WooCommerce's Store API only answers origins WordPress considers allowed.
- * Public routes allow any origin (without cookies, see below); the keyed API
- * allows Framer's own origins.
+ * Public routes allow any origin (without cookies, see below), unless the
+ * admin has restricted them.
  */
 add_filter('allowed_http_origin', function ($allowed, $origin) {
     if ($allowed || !is_string($origin) || $origin === '') {
@@ -154,9 +161,6 @@ add_filter('allowed_http_origin', function ($allowed, $origin) {
     $route = fecwf_current_route();
     if (fecwf_is_public_route($route)) {
         return fecwf_public_origin_allowed($origin) ? $origin : $allowed;
-    }
-    if (fecwf_is_keyed_route($route) && fecwf_is_framer_origin($origin)) {
-        return $origin;
     }
     return $allowed;
 }, 10, 2);
@@ -182,16 +186,14 @@ add_filter('rest_pre_serve_request', function ($served, $result = null, $request
         return $served;
     }
 
-    $public = fecwf_is_public_route($route);
-    $keyed = fecwf_is_keyed_route($route) && fecwf_is_framer_origin($origin);
-    if (!$public && !$keyed) {
+    if (!fecwf_is_public_route($route)) {
         return $served; // WordPress default
     }
 
     header('Access-Control-Allow-Origin: ' . $origin);
     header('Vary: Origin', false);
     header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    header('X-FeCommerce-CORS-Active: ' . FECWF_VERSION);
+    header('X-FeCommerce-CORS-Active: 1');
 
     // Cookies are never shared with another site. The store's own pages keep
     // their usual behaviour.
@@ -214,7 +216,9 @@ add_action('rest_api_init', function () {
             return rest_ensure_response(array(
                 'plugin' => 'fecommerce-wooframe',
                 'version' => FECWF_VERSION,
-                'woocommerce' => defined('WC_VERSION') ? WC_VERSION : null,
+                // Whether WooCommerce is active, not its version: an exact
+                // version only helps someone looking for an unpatched store.
+                'woocommerce' => defined('WC_VERSION'),
                 'stripe' => fecwf_stripe_publishable_key() !== null,
                 'connect' => true,
             ));
