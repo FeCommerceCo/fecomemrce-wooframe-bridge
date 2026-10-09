@@ -372,13 +372,13 @@ function fecwf_render_admin_page()
                 </p>
             <?php else : ?>
                 <div class="fecwf-meta">
-                    <div><span>Store</span><strong dir="ltr" title="<?php echo esc_attr($connection['store']); ?>"><?php echo esc_html($connection['store']); ?></strong></div>
+                    <div><span>Store</span><strong title="<?php echo esc_attr($connection['store']); ?>"><?php echo esc_html($connection['store']); ?></strong></div>
                     <div><span>Connected since</span><strong><?php echo esc_html(wp_date(get_option('date_format'), (int) $connection['issued_at'])); ?></strong></div>
                 </div>
 
                 <label class="fecwf-label" for="fecwf-key">Connection key</label>
                 <div class="fecwf-key">
-                    <input type="password" id="fecwf-key" dir="ltr" value="<?php echo esc_attr($connection['key']); ?>" readonly autocomplete="off" spellcheck="false" />
+                    <input type="password" id="fecwf-key" value="<?php echo esc_attr($connection['key']); ?>" readonly autocomplete="off" spellcheck="false" />
                     <button type="button" class="fecwf-icon-btn" id="fecwf-reveal" aria-label="Show key" aria-pressed="false" aria-controls="fecwf-key">
                         <span class="fecwf-when-off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span>
                         <span class="fecwf-when-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.9 4.24A9.1 9.1 0 0 1 12 4c6.5 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19M6.6 6.6A18.4 18.4 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M2 2l20 20"/></svg></span>

@@ -209,14 +209,14 @@ function fecwf_render_allowlist_section()
         <?php wp_nonce_field('fecwf_save_sites'); ?>
         <label class="fecwf-toggle"><input type="checkbox" name="fecwf_restrict" value="1" <?php checked($restrict); ?> /> Only allow the sites listed below</label>
         <label class="fecwf-label" for="fecwf-sites">Allowed sites</label>
-        <textarea id="fecwf-sites" name="fecwf_sites" class="fecwf-sites" dir="ltr" rows="5" placeholder="https://www.your-site.com&#10;https://your-site.framer.website"><?php echo esc_textarea(implode("\n", $sites)); ?></textarea>
+        <textarea id="fecwf-sites" name="fecwf_sites" class="fecwf-sites" rows="5" placeholder="https://www.your-site.com&#10;https://your-site.framer.website"><?php echo esc_textarea(implode("\n", $sites)); ?></textarea>
         <p class="fecwf-fine">One address per line, like <code>https://www.your-site.com</code>.</p>
         <?php if ($seen) : ?>
             <div class="fecwf-seen">
                 <p><strong>Recently seen using your store.</strong> Only add addresses you recognise as your own sites. Anyone can make a request that appears here.</p>
                 <div class="fecwf-chips">
                     <?php foreach (array_keys($seen) as $origin) : ?>
-                        <button type="button" class="fecwf-chip fecwf-add-site" dir="ltr" data-site="<?php echo esc_attr($origin); ?>">+ <?php echo esc_html($origin); ?></button>
+                        <button type="button" class="fecwf-chip fecwf-add-site" data-site="<?php echo esc_attr($origin); ?>">+ <?php echo esc_html($origin); ?></button>
                     <?php endforeach; ?>
                 </div>
             </div>
