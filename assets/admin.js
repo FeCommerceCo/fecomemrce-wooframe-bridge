@@ -24,11 +24,16 @@
     }
 
     if (key && copy) {
-        var timer;
+        var timer, say;
         var done = function () {
             if (error) error.hidden = true;
             copy.classList.add('is-on');
-            if (status) status.textContent = 'Key copied';
+            if (status) {
+                // Clear first so a repeat copy is a change screen readers announce.
+                status.textContent = '';
+                clearTimeout(say);
+                say = setTimeout(function () { status.textContent = 'Key copied'; }, 100);
+            }
             clearTimeout(timer);
             timer = setTimeout(function () {
                 copy.classList.remove('is-on');
