@@ -1,52 +1,98 @@
 <?php
 /**
- * Plugin Name:       fecommerce-wooframe-bridge
- * Plugin URI:        https://github.com/FeCommerceCo/fecomemrce-wooframe-bridge
- * Description:       Lets your Framer site and the FeCommerce Framer plugin talk to this WooCommerce store directly.
- * Version:           1.1.1
- * Author:            FeCommerce
+ * Plugin Name:       FeCommerce Bridge for WooCommerce
+ * Plugin URI:        https://www.fecommerce.co/products/plugins/woocommerce
+ * Description:       Lets your Framer site and the FeCommerce Framer plugin talk to this WooCommerce store directly, and issues the store's Framer connection key.
+ * Version:           1.2.1
+ * Author:            FeCommerce Co
  * Author URI:        https://fecommerce.co
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Requires at least: 5.8
  * Requires PHP:      7.4
  * Requires Plugins:  woocommerce
- * Text Domain:       fecommerce-wooframe
+ * Text Domain:       fecommerce-bridge-for-woocommerce
+ *
+ * Copyright (C) 2026 FeCommerce (https://fecommerce.co)
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+ * details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program; if not, see <https://www.gnu.org/licenses/>.
  */
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
-define('FECWF_VERSION', '1.1.1');
+/*
+ * Before 1.2.0 this plugin was installed as
+ * fecommerce-wooframe/fecommerce-wooframe.php (and 1.2.0 test builds as
+ * woocommerce-bridge-fecommerce-co/woocommerce-bridge-fecommerce-co.php).
+ * WordPress treats the renamed plugin as a different one, so both can be
+ * installed side by side. Both define the same functions, so only one copy may
+ * run. While an old copy is active, this one stays idle and only switches the
+ * old copies off when it is activated. The connection and settings carry over
+ * because all copies use the same fecwf_* options. Old releases have no
+ * uninstall.php, so deleting the old copy afterwards removes nothing.
+ */
+if (defined('FECWF_FILE')) {
+    register_activation_hook(__FILE__, function () {
+        deactivate_plugins(array(
+            'fecommerce-wooframe/fecommerce-wooframe.php',
+            'woocommerce-bridge-fecommerce-co/woocommerce-bridge-fecommerce-co.php',
+        ), true);
+    });
+    return;
+}
+
+define('FECWF_VERSION', '1.2.1');
 define('FECWF_NAMESPACE', 'fecommerce/v1');
+define('FECWF_FILE', __FILE__);
+// Reviews accepted from the storefront form per hour, store-wide. A store
+// can raise it in wp-config.php.
+if (!defined('FECWF_REVIEWS_PER_HOUR')) {
+    define('FECWF_REVIEWS_PER_HOUR', 30);
+}
+
+require_once __DIR__ . '/includes/connect.php';
+require_once __DIR__ . '/includes/site-allowlist.php';
 
 /*
  * ─── Who may call what ─────────────────────────────────────────────────────
  *
- * Two kinds of REST request reach this store from Framer:
+ * PUBLIC STORE DATA is the only thing opened to other sites: WooCommerce's
+ * Store API (/wc/store/...) and this plugin's own /fecommerce/v1 routes.
+ * Products, categories and the shopper's cart, which the published Framer
+ * site reads directly. A merchant's site can live on any domain (their own,
+ * *.framer.app, *.framer.website), so ANY origin may read these, but never
+ * with cookies: the credentials header is removed, so another website cannot
+ * read a logged-in customer's session. FeCommerce components carry their cart
+ * in the Cart-Token header instead, which needs no cookies.
  *
- *   1. PUBLIC STORE DATA: WooCommerce's Store API (/wc/store/...) and this
- *      plugin's own /fecommerce/v1 routes. Products, categories and the
- *      shopper's cart, which the published Framer site reads directly. A
- *      merchant's site can live on any domain (their own, *.framer.app,
- *      *.framer.website), so ANY origin may read these, but never with
- *      cookies: the credentials header is removed, so another website cannot
- *      read a logged-in customer's session. FeCommerce components carry their
- *      cart in the Cart-Token header instead, which needs no cookies.
+ * WooCommerce's key-protected REST API (/wc/v1-3/...) is NOT opened: the
+ * FeCommerce Framer plugin uses only the public Store API and holds no API
+ * keys. (Bridge 1.1 opened it to Framer's origins; 1.2 removes that.)
  *
- *   2. KEYED REST API (/wc/v1-3/...): the FeCommerce Framer plugin's catalogue
- *      sync, authenticated with the merchant's API keys in the Authorization
- *      header. Only Framer's own origins (the plugin sandbox, the editor and
- *      canvas) are allowed.
- *
- * Every other REST request, and every other origin on the keyed API, keeps
- * WordPress's default CORS behaviour. Nothing else on the store is affected.
+ * Every other REST request keeps WordPress's default CORS behaviour. Nothing
+ * else on the store is affected. The store admin can optionally restrict the
+ * public routes to a list of sites (includes/site-allowlist.php). It is off by
+ * default.
  */
 
 /**
- * Framer's own origins: the plugin sandbox, the editor and the canvas.
- * localhost is allowed only with WP_DEBUG on, for plugin development.
+ * Framer's own origins: the plugin sandbox, the editor and the canvas. Always
+ * allowed to read the public routes, even when the admin restricts them, so
+ * syncing from Framer keeps working. localhost only with WP_DEBUG on, for
+ * plugin development.
  */
 function fecwf_is_framer_origin($origin)
 {
@@ -78,12 +124,6 @@ function fecwf_is_public_route($route)
     );
 }
 
-/** WooCommerce's keyed REST API. */
-function fecwf_is_keyed_route($route)
-{
-    return is_string($route) && (bool) preg_match('#^/wc/v[123]/#', $route);
-}
-
 /**
  * The REST route of the current request, also during a preflight, before a
  * WP_REST_Request exists.
@@ -93,7 +133,11 @@ function fecwf_current_route()
     if (isset($GLOBALS['wp']) && isset($GLOBALS['wp']->query_vars['rest_route'])) {
         return '/' . ltrim((string) $GLOBALS['wp']->query_vars['rest_route'], '/');
     }
+    // Read-only routing lookup on a public REST request, not form handling, so
+    // there is no nonce to check.
+    // phpcs:ignore WordPress.Security.NonceVerification.Recommended
     if (isset($_GET['rest_route'])) {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         return '/' . ltrim(sanitize_text_field(wp_unslash($_GET['rest_route'])), '/');
     }
     return '';
@@ -119,7 +163,7 @@ function fecwf_is_same_site($origin)
 add_filter('rest_allowed_cors_headers', function ($headers) {
     return array_values(array_unique(array_merge(
         (array) $headers,
-        array('Authorization', 'Content-Type', 'X-WP-Nonce', 'Cart-Token', 'Nonce', 'X-WC-Store-API-Nonce')
+        array('Content-Type', 'Cart-Token', 'Nonce', 'X-WC-Store-API-Nonce')
     )));
 });
 
@@ -137,8 +181,8 @@ add_filter('rest_exposed_cors_headers', function ($headers) {
 
 /**
  * WooCommerce's Store API only answers origins WordPress considers allowed.
- * Public routes allow any origin (without cookies, see below); the keyed API
- * allows Framer's own origins.
+ * Public routes allow any origin (without cookies, see below), unless the
+ * admin has restricted them.
  */
 add_filter('allowed_http_origin', function ($allowed, $origin) {
     if ($allowed || !is_string($origin) || $origin === '') {
@@ -146,10 +190,7 @@ add_filter('allowed_http_origin', function ($allowed, $origin) {
     }
     $route = fecwf_current_route();
     if (fecwf_is_public_route($route)) {
-        return $origin;
-    }
-    if (fecwf_is_keyed_route($route) && fecwf_is_framer_origin($origin)) {
-        return $origin;
+        return fecwf_public_origin_allowed($origin) ? $origin : $allowed;
     }
     return $allowed;
 }, 10, 2);
@@ -164,16 +205,25 @@ add_filter('rest_pre_serve_request', function ($served, $result = null, $request
     }
     $route = ($request instanceof WP_REST_Request) ? $request->get_route() : fecwf_current_route();
 
-    $public = fecwf_is_public_route($route);
-    $keyed = fecwf_is_keyed_route($route) && fecwf_is_framer_origin($origin);
-    if (!$public && !$keyed) {
+    // A site the store admin hasn't allowed (only when restriction is on) gets
+    // no Access-Control-Allow-Origin naming it, so its browser can't read the
+    // response. WordPress core echoes any origin by default, hence the removal.
+    if (fecwf_is_public_route($route) && !fecwf_public_origin_allowed($origin)) {
+        if (!headers_sent()) {
+            header_remove('Access-Control-Allow-Origin');
+            header_remove('Access-Control-Allow-Credentials');
+        }
+        return $served;
+    }
+
+    if (!fecwf_is_public_route($route)) {
         return $served; // WordPress default
     }
 
     header('Access-Control-Allow-Origin: ' . $origin);
     header('Vary: Origin', false);
     header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    header('X-FeCommerce-CORS-Active: ' . FECWF_VERSION);
+    header('X-FeCommerce-CORS-Active: 1');
 
     // Cookies are never shared with another site. The store's own pages keep
     // their usual behaviour.
@@ -193,12 +243,27 @@ add_action('rest_api_init', function () {
         'methods' => 'GET',
         'permission_callback' => '__return_true',
         'callback' => function () {
-            return rest_ensure_response(array(
+            $connection = fecwf_get_connection();
+            $response = rest_ensure_response(array(
                 'plugin' => 'fecommerce-wooframe',
                 'version' => FECWF_VERSION,
-                'woocommerce' => defined('WC_VERSION') ? WC_VERSION : null,
+                // Whether WooCommerce is active, not its version: an exact
+                // version only helps someone looking for an unpatched store.
+                'woocommerce' => defined('WC_VERSION'),
                 'stripe' => fecwf_stripe_publishable_key() !== null,
+                'connect' => true,
+                // The id of this store's current connection key, or null when
+                // disconnected. The Framer plugin and components accept a key
+                // only while the store still names it here, so Regenerate and
+                // Disconnect take effect without asking FeCommerce. Not a
+                // secret: it is inside the key, which is published with every
+                // Framer site that uses it.
+                'sid' => $connection ? $connection['sid'] : null,
             ));
+            // Short, so a regenerated or disconnected key stops working
+            // within about a minute.
+            $response->header('Cache-Control', 'public, max-age=60');
+            return $response;
         },
     ));
 
@@ -231,6 +296,8 @@ add_action('rest_api_init', function () {
             'review' => array('required' => true, 'type' => 'string'),
             'author' => array('required' => true, 'type' => 'string'),
             'email' => array('required' => true, 'type' => 'string'),
+            // Honeypot: a hidden field people never see or fill in.
+            'website' => array('required' => false, 'type' => 'string'),
         ),
     ));
 });
@@ -259,8 +326,15 @@ function fecwf_stripe_publishable_key()
 
 /**
  * Create a product review from the storefront form. Goes through WordPress's
- * own comment pipeline (wp_new_comment), so moderation, flood, duplicate and
- * spam checks (Akismet etc.) all apply as for a review left on the store.
+ * own comment pipeline (wp_new_comment), so flood, duplicate and spam checks
+ * (Akismet etc.) all apply as for a review left on the store.
+ *
+ * Anyone can call this route, from any address, so on top of that:
+ *   - every review from it is held for moderation, whatever the store's
+ *     discussion settings, so nothing appears without the admin approving it;
+ *   - at most 5 per address per 10 minutes, and FECWF_REVIEWS_PER_HOUR for
+ *     the whole store, so rotating addresses can't flood the moderation queue;
+ *   - a filled-in honeypot field gets a normal-looking answer and is dropped.
  */
 function fecwf_submit_review(WP_REST_Request $request)
 {
@@ -306,16 +380,34 @@ function fecwf_submit_review(WP_REST_Request $request)
         return $error('fecwf_rating_required', 'Please choose a rating.', 400);
     }
 
+    // A bot that fills in every field: answer as if accepted, store nothing.
+    if (trim((string) $request->get_param('website')) !== '') {
+        return rest_ensure_response(array('ok' => true, 'status' => 'pending'));
+    }
+
     // At most 5 submissions per address per 10 minutes, on top of WordPress's
-    // own flood check.
+    // own flood check. REMOTE_ADDR, not a forwarded-for header, which the
+    // sender controls. Behind a proxy every visitor shares one address; the
+    // store-wide cap below is what bounds the total either way.
     $ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
     $limit_key = 'fecwf_rv_' . md5($ip);
     $count = (int) get_transient($limit_key);
     if ($count >= 5) {
         return $error('fecwf_rate_limited', 'Too many reviews from you in a short time. Please try again later.', 429);
     }
+    $store_key = 'fecwf_rv_all_' . (int) floor(time() / HOUR_IN_SECONDS);
+    $store_count = (int) get_transient($store_key);
+    if ($store_count >= FECWF_REVIEWS_PER_HOUR) {
+        return $error('fecwf_rate_limited', 'This store is receiving a lot of reviews right now. Please try again later.', 429);
+    }
     set_transient($limit_key, $count + 1, 10 * MINUTE_IN_SECONDS);
+    set_transient($store_key, $store_count + 1, HOUR_IN_SECONDS);
 
+    // Held for moderation. Spam, trash and errors from other checks stand.
+    $hold = function ($approved) {
+        return (is_wp_error($approved) || $approved === 'spam' || $approved === 'trash') ? $approved : 0;
+    };
+    add_filter('pre_comment_approved', $hold, PHP_INT_MAX);
     $comment_id = wp_new_comment(array(
         'comment_post_ID' => $product_id,
         'comment_author' => $author,
@@ -328,6 +420,7 @@ function fecwf_submit_review(WP_REST_Request $request)
         'comment_author_IP' => $ip,
         'comment_agent' => isset($_SERVER['HTTP_USER_AGENT']) ? substr(sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])), 0, 254) : '',
     ), true);
+    remove_filter('pre_comment_approved', $hold, PHP_INT_MAX);
 
     if (is_wp_error($comment_id)) {
         // wp_allow_comment reports duplicates (409) and floods (429) with the
