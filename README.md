@@ -1,4 +1,4 @@
-# WooCommerce Bridge - FeCommerce Co
+# FeCommerce Bridge for WooCommerce
 
 A small WordPress plugin that lets your [Framer](https://framer.com) site and the FeCommerce Framer plugin talk to your WooCommerce store directly, and issues your store's Framer **connection key**.
 
@@ -68,8 +68,8 @@ If Connect fails with "couldn't confirm your site", a security plugin, firewall 
 Build from a tag with `git archive`, never by hand-picking files:
 
 ```bash
-git archive --format=zip --prefix=woocommerce-bridge-fecommerce-co/ \
-  -o woocommerce-bridge-fecommerce-co-<version>.zip v<version>
+git archive --format=zip --prefix=fecommerce-bridge-for-woocommerce/ \
+  -o fecommerce-bridge-for-woocommerce-<version>.zip v<version>
 ```
 
 This includes every tracked plugin file, `assets/` too, in the folder WordPress expects. Files marked `export-ignore` in `.gitattributes` are left out. Before uploading the release, open the ZIP and check that `assets/` is there.
