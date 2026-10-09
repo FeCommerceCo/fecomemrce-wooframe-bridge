@@ -453,3 +453,11 @@
         min-width: 0;
     }
 }
+
+/* Keys and URLs read left to right, even in a right-to-left admin language. */
+.fecwf .fecwf-key input,
+.fecwf .fecwf-sites,
+.fecwf .fecwf-chip,
+.fecwf-meta strong {
+    direction: ltr;
+}
