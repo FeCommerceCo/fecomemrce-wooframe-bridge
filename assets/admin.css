@@ -55,7 +55,7 @@
 .fecwf-subtitle {
     margin: 2px 0 0;
     font-size: 13px;
-    color: var(--fecwf-muted);
+    color: var(--fecwf-muted-strong);
 }
 
 /* Status pill */
@@ -340,7 +340,7 @@
 .fecwf .fecwf-btn-danger:hover {
     background: #fef2f2;
     border-color: #fca5a5;
-    color: var(--fecwf-red);
+    color: #b91c1c;
 }
 
 /* Notices inside cards */
