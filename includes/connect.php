@@ -389,6 +389,7 @@ function fecwf_render_admin_page()
                     </button>
                 </div>
                 <span class="screen-reader-text" id="fecwf-copy-status" role="status" aria-live="polite"></span>
+                <p class="fecwf-copy-error" id="fecwf-copy-error" aria-hidden="true" hidden>Couldn't copy. Select the key and press Ctrl+C (Cmd+C on a Mac).</p>
 
                 <ol class="fecwf-steps">
                     <li>In Framer, open the <strong>FeCommerce</strong> plugin.</li>
