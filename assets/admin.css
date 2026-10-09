@@ -414,6 +414,14 @@
     margin-top: 16px;
 }
 
+/* Below WordPress's mobile breakpoint, 16px stops iOS zooming in on focus (as core does). */
+@media (max-width: 782px) {
+    .fecwf .fecwf-key input,
+    .fecwf .fecwf-sites {
+        font-size: 16px;
+    }
+}
+
 @media (max-width: 600px) {
     .fecwf-card {
         padding: 16px;
