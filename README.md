@@ -53,7 +53,7 @@ Published Framer sites check their key themselves, so Regenerate and Disconnect 
 
 Then go to **WooCommerce → FeCommerce**, click **Connect to Framer**, and copy the connection key into the FeCommerce plugin in Framer.
 
-To check the plugin is active, open `https://your-store.example/wp-json/fecommerce/v1/status`. You should see `"version": "1.2.0"`.
+To check the plugin is active, open `https://your-store.example/wp-json/fecommerce/v1/status`. You should see `"version": "1.2.1"`.
 
 If Connect fails with "couldn't confirm your site", a security plugin, firewall or page cache is blocking or caching `/wp-json/fecommerce/v1/challenge`. Allow that address and try again.
 
@@ -64,6 +64,11 @@ If Connect fails with "couldn't confirm your site", a security plugin, firewall 
 - WooCommerce (active)
 
 ## Changelog
+
+### 1.2.1
+- Redesigned WooCommerce → FeCommerce screen in FeCommerce's colours: status badge, cards, and a connection key that's hidden until you click the eye button, with a Copy button.
+- The screen's styles and scripts are now files in `assets/`, loaded only on that screen. No inline scripts remain.
+- Accessibility: labelled buttons, a "Key copied" announcement for screen readers, visible keyboard focus and stronger text contrast. The layout mirrors correctly in right-to-left languages.
 
 ### 1.2.0
 - New: **Connect to Framer** (WooCommerce → FeCommerce) issues the store's connection key, now required by the FeCommerce Framer plugin. Regenerate and Disconnect included.
