@@ -59,6 +59,9 @@ function fecwf_fetch_sites()
     if (!isset($data['sites']) || !is_array($data['sites'])) {
         return new WP_Error('fecwf_bad_response', 'FeCommerce returned an unexpected answer. Try again in a few minutes.');
     }
+    // Whether the store's security settings are slowing FeCommerce down
+    // (includes/limit-notice.php).
+    fecwf_remember_limited($data);
     $sites = array_values(array_filter(array_map('fecwf_clean_site', array_slice($data['sites'], 0, 200))));
     $cache = array('fetched_at' => time(), 'sites' => $sites);
     set_transient(FECWF_SITES_TRANSIENT, $cache, 10 * MINUTE_IN_SECONDS);

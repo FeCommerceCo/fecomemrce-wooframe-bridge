@@ -470,3 +470,26 @@
     text-transform: none;
     letter-spacing: 0;
 }
+
+/* "Allow FeCommerce" steps (includes/limit-notice.php). */
+.fecwf-allow h3 {
+    margin: 16px 0 6px;
+    font-size: 14px;
+}
+.fecwf-copy-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+}
+.fecwf-copy-text {
+    padding: 6px 8px;
+    overflow-wrap: anywhere;
+    user-select: all;
+}
+.fecwf-copy-status {
+    display: block;
+    min-height: 1.4em;
+    font-size: 12px;
+}
