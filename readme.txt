@@ -20,7 +20,7 @@ Browsers only let a website read another site's data when that site says it may 
 
 **Everything else is unchanged.** Every other REST route keeps WordPress's default behaviour.
 
-**Connect with a pairing code.** In Framer, the FeCommerce plugin shows a short code that changes every 30 seconds. Enter it under **WooCommerce → FeCommerce**, check the Framer project's name and addresses, and click **Approve**; then confirm your store in Framer. Approve sends the code, your store's address and site title to FeCommerce's API (api-v2.fecommerce.co), which confirms the address belongs to your site by reading `/wp-json/fecommerce/v1/challenge` once and checks that WooCommerce answers at `/wp-json/wc/store/v1/products`. FeCommerce keeps your store's hostname, its name, a connection id and dates; nothing about your products, orders or customers. It is contacted only when you enter a code, approve, cancel or manage connected sites.
+**Connect with a pairing code.** In Framer, the FeCommerce plugin shows a short code that changes every 30 seconds. Enter it under **WooCommerce → FeCommerce**, check the Framer project's name and addresses, and click **Approve**; then confirm your store in Framer. Approve sends the code, your store's address and site title to FeCommerce's API (api-v2.fecommerce.co), which confirms the address belongs to your site by reading `/wp-json/fecommerce/v1/challenge` once and checks that WooCommerce answers at `/wp-json/wc/store/v1/products`. FeCommerce keeps your store's hostname, its name, a connection id and dates; nothing about your products, orders or customers. It is contacted only when you enter a code, approve, cancel or manage connected sites. Under **Connected Framer sites** you can see every connected Framer project and disconnect one without affecting the others.
 
 **Optional: restrict which sites may use your store.** Off by default. When on, only the site addresses you list (plus your own site and Framer's editor) can show your store's products, cart and checkout to their visitors. It controls other websites, not direct access: your store's public product and cart API stays public, as on every WooCommerce store.
 
@@ -71,6 +71,7 @@ If you redistribute or modify this plugin, keep this copyright notice and the li
 * Connect to Framer with a pairing code: enter the code the FeCommerce plugin in Framer shows, check the project, and approve. No connection key to copy.
 * All requests go to FeCommerce's API at api-v2.fecommerce.co instead of auth.fecommerce.co.
 * Several Framer projects share one store connection. Disconnect all Framer sites replaces Regenerate and Disconnect.
+* New: Connected Framer sites lists every connected Framer project, with Disconnect for each one.
 
 = 1.2.1 =
 * Redesigned WooCommerce → FeCommerce screen in FeCommerce's colours: status badge, cards, and a connection key that's hidden until you click the eye button, with a Copy button.

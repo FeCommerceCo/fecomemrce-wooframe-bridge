@@ -43,6 +43,8 @@ define('FECWF_API_BASE', 'https://api-v2.fecommerce.co');
 define('FECWF_CONNECTION_OPTION', 'fecwf_connection');
 define('FECWF_SECRET_OPTION', 'fecwf_store_secret');
 define('FECWF_CHALLENGE_TRANSIENT', 'fecwf_challenge');
+// The connected Framer sites, as last loaded (includes/connected-sites.php).
+define('FECWF_SITES_TRANSIENT', 'fecwf_sites');
 // Crockford base32, as the API issues codes.
 define('FECWF_CODE_ALPHABET', '0123456789ABCDEFGHJKMNPQRSTVWXYZ');
 
@@ -114,7 +116,7 @@ function fecwf_clear_connection()
 {
     delete_option(FECWF_CONNECTION_OPTION);
     delete_option(FECWF_SECRET_OPTION);
-    delete_transient('fecwf_sites');
+    delete_transient(FECWF_SITES_TRANSIENT);
 }
 
 /** 32 random bytes, base64url without padding (43 characters). */
@@ -372,7 +374,7 @@ function fecwf_claim(array $pending)
             'issued_at' => time(),
         ), true);
     }
-    delete_transient('fecwf_sites');
+    delete_transient(FECWF_SITES_TRANSIENT);
     return isset($data['binding']) && is_array($data['binding']) ? $data['binding'] : array();
 }
 
@@ -626,10 +628,16 @@ function fecwf_render_admin_page()
             <?php endif; ?>
         </div>
 
+        <?php
+        if ($connection && !is_wp_error($origin)) {
+            fecwf_render_sites_section();
+        }
+        ?>
+
         <?php if ($connection) : ?>
             <div class="fecwf-card">
                 <h2>Manage</h2>
-                <p>Disconnecting stops every Framer site connected to this store within about a minute. To connect again later, enter a new code from Framer.</p>
+                <p>Disconnecting all stops every Framer site connected to this store within about a minute. To stop just one site, use Disconnect next to it under Connected Framer sites. To connect again later, enter a new code from Framer.</p>
                 <div class="fecwf-actions">
                     <?php fecwf_action_form('fecwf_disconnect', 'Disconnect all Framer sites', 'fecwf-btn fecwf-btn-danger', 'Disconnect this store from Framer? Every Framer site connected to it stops showing its products, cart and checkout within about a minute.'); ?>
                 </div>
