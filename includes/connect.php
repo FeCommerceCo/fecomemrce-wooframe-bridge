@@ -42,6 +42,7 @@ if (!defined('ABSPATH')) {
 define('FECWF_API_BASE', 'https://api-v2.fecommerce.co');
 define('FECWF_CONNECTION_OPTION', 'fecwf_connection');
 define('FECWF_SECRET_OPTION', 'fecwf_store_secret');
+// Each challenge is stored under its own id: fecwf_challenge_<id> (FEC-151).
 define('FECWF_CHALLENGE_TRANSIENT', 'fecwf_challenge');
 // The connected Framer sites, as last loaded (includes/connected-sites.php).
 define('FECWF_SITES_TRANSIENT', 'fecwf_sites');
@@ -119,32 +120,51 @@ function fecwf_clear_connection()
     delete_transient(FECWF_SITES_TRANSIENT);
 }
 
-/** 32 random bytes, base64url without padding (43 characters). */
+/** Random bytes as base64url without padding. */
+function fecwf_random_b64url($bytes)
+{
+    return rtrim(strtr(base64_encode(random_bytes($bytes)), '+/', '-_'), '=');
+}
+
+/** The transient one challenge is kept under, or null for a malformed id. */
+function fecwf_challenge_key($id)
+{
+    return (is_string($id) && preg_match('/^[A-Za-z0-9_-]{16,64}$/D', $id)) ? FECWF_CHALLENGE_TRANSIENT . '_' . $id : null;
+}
+
+/**
+ * A new challenge: 32 random bytes (43 characters) under a random id
+ * (22 characters). Returns array(id, challenge).
+ */
 function fecwf_new_challenge()
 {
-    $challenge = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
-    set_transient(FECWF_CHALLENGE_TRANSIENT, $challenge, 2 * MINUTE_IN_SECONDS);
-    return $challenge;
+    $id = fecwf_random_b64url(16);
+    $challenge = fecwf_random_b64url(32);
+    set_transient(fecwf_challenge_key($id), $challenge, 2 * MINUTE_IN_SECONDS);
+    return array($id, $challenge);
 }
 
 /*
- * GET /fecommerce/v1/challenge: answers the API's domain check with the
- * challenge this plugin is waiting on, and 404 at any other time.
+ * GET /fecommerce/v1/challenge?id=<id>: answers the API's domain check with
+ * the challenge saved under that id, and 404 at any other time.
  *
- * SINGLE USE: the challenge is deleted the moment it is read, so the one read
- * the API makes is the only one that can succeed. Someone polling this
- * address during the two-minute window can at most make that Approve fail
- * (the admin clicks again); they can't reuse the challenge, because the API
- * reads it from this address itself, and by then it is gone. Responses are
- * never cached, so a page cache or CDN can't replay one either.
+ * The id is random and only ever sent to FeCommerce with the challenge, so
+ * only FeCommerce's own read can find it. Someone polling this address can't
+ * consume a challenge any more (FEC-151; before 1.3.1 the first read of any
+ * kind took it). SINGLE USE: the challenge is deleted the moment it is read.
+ * A request without an id gets 404. Responses are never cached, so a page
+ * cache or CDN can't replay one either.
  */
 add_action('rest_api_init', function () {
     register_rest_route(FECWF_NAMESPACE, '/challenge', array(
         'methods' => 'GET',
         'permission_callback' => '__return_true',
-        'callback' => function () {
-            $challenge = get_transient(FECWF_CHALLENGE_TRANSIENT);
-            delete_transient(FECWF_CHALLENGE_TRANSIENT);
+        'callback' => function (WP_REST_Request $request) {
+            $key = fecwf_challenge_key($request->get_param('id'));
+            $challenge = $key ? get_transient($key) : false;
+            if ($key) {
+                delete_transient($key);
+            }
             if (!is_string($challenge) || $challenge === '') {
                 $response = new WP_REST_Response(array('code' => 'fecwf_no_challenge', 'message' => 'No connection is in progress.'), 404);
             } else {
@@ -188,8 +208,12 @@ function fecwf_service_message($code)
  */
 function fecwf_api_post($path, array $body, $prove_domain = false)
 {
+    $challenge_key = null;
     if ($prove_domain) {
-        $body['challenge'] = fecwf_new_challenge();
+        list($challenge_id, $challenge) = fecwf_new_challenge();
+        $body['challenge'] = $challenge;
+        $body['challengeId'] = $challenge_id;
+        $challenge_key = fecwf_challenge_key($challenge_id);
     }
     $response = wp_remote_post(fecwf_api_base() . $path, array(
         'timeout' => 20,
@@ -198,8 +222,8 @@ function fecwf_api_post($path, array $body, $prove_domain = false)
         'user-agent' => 'FeCommerce-Bridge/' . FECWF_VERSION,
         'body' => wp_json_encode($body),
     ));
-    if ($prove_domain) {
-        delete_transient(FECWF_CHALLENGE_TRANSIENT);
+    if ($challenge_key) {
+        delete_transient($challenge_key);
     }
 
     if (is_wp_error($response)) {
@@ -540,8 +564,9 @@ function fecwf_render_approve($pending, $origin)
             <?php endif; ?>
             to <code><?php echo esc_html($origin); ?></code>?
         </p>
+        <p class="fecwf-unverified">The project name and domains above were sent by the Framer plugin and are <strong>not verified</strong>.</p>
         <div class="fecwf-meta">
-            <div><span>Framer project</span><strong title="<?php echo esc_attr($pending['projectName']); ?>"><?php echo esc_html($pending['projectName']); ?></strong></div>
+            <div><span>Framer project <em class="fecwf-unverified-tag">Sent by the Framer plugin — not verified</em></span><strong title="<?php echo esc_attr($pending['projectName']); ?>"><?php echo esc_html($pending['projectName']); ?></strong></div>
             <div><span>Code</span><strong><?php echo esc_html(fecwf_display_code($pending['code'])); ?><?php echo $age !== '' ? ' · ' . esc_html('created ' . $age) : ''; ?></strong></div>
         </div>
         <p>That site will be able to show your products and run cart and checkout with this store.</p>

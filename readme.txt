@@ -4,7 +4,7 @@ Tags: woocommerce, framer, cors, headless, rest-api
 Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.3.0
+Stable tag: 1.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -67,6 +67,10 @@ If you redistribute or modify this plugin, keep this copyright notice and the li
 
 == Changelog ==
 
+= 1.3.1 =
+* Security: each domain check now uses its own random challenge id, and the challenge endpoint answers only FeCommerce's request for that id. Someone repeatedly reading /wp-json/fecommerce/v1/challenge can no longer make Approve or Connected Framer sites fail.
+* The Approve screen labels the Framer project name and domains as sent by the Framer plugin and not verified.
+
 = 1.3.0 =
 * Requires the FeCommerce plugin in Framer with pairing. Connection keys are no longer used: the key screens are removed.
 * Connect to Framer with a pairing code: enter the code the FeCommerce plugin in Framer shows, check the project, and approve. No connection key to copy.
@@ -108,6 +112,9 @@ If you redistribute or modify this plugin, keep this copyright notice and the li
 * Initial release.
 
 == Upgrade Notice ==
+
+= 1.3.1 =
+Security update for connecting to Framer. Safe to update.
 
 = 1.3.0 =
 Connect with a pairing code instead of a connection key. After updating, open the FeCommerce plugin in Framer, click Connect store, and enter its code under WooCommerce → FeCommerce.
