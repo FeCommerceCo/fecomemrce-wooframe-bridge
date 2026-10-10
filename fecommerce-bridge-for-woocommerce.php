@@ -3,7 +3,7 @@
  * Plugin Name:       FeCommerce Bridge for WooCommerce
  * Plugin URI:        https://www.fecommerce.co/products/plugins/woocommerce
  * Description:       Lets your Framer site and the FeCommerce Framer plugin work with this WooCommerce store, and connects the store to Framer sites with a pairing code.
- * Version:           1.2.1
+ * Version:           1.3.0
  * Author:            FeCommerce Co
  * Author URI:        https://fecommerce.co
  * License:           GPL-2.0-or-later
@@ -54,7 +54,7 @@ if (defined('FECWF_FILE')) {
     return;
 }
 
-define('FECWF_VERSION', '1.2.1');
+define('FECWF_VERSION', '1.3.0');
 define('FECWF_NAMESPACE', 'fecommerce/v1');
 define('FECWF_FILE', __FILE__);
 // Reviews accepted from the storefront form per hour, store-wide. A store
