@@ -655,6 +655,7 @@ function fecwf_render_admin_page()
 
         <?php
         if ($connection && !is_wp_error($origin)) {
+            fecwf_render_allow_section();
             fecwf_render_sites_section();
         }
         ?>

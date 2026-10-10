@@ -4,7 +4,7 @@ Tags: woocommerce, framer, cors, headless, rest-api
 Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.3.1
+Stable tag: 1.3.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -67,6 +67,10 @@ If you redistribute or modify this plugin, keep this copyright notice and the li
 
 == Changelog ==
 
+= 1.3.2 =
+* New: when your store's security settings (for example Cloudflare rate limiting or bot protection) keep slowing down FeCommerce, WooCommerce → FeCommerce and the Dashboard show a notice with the two-minute steps to allow FeCommerce, including a rule you can copy. It can be hidden for 7 days and goes away on its own once requests get through.
+* The check runs in the background at most once an hour while the store is connected; nothing extra runs on page views.
+
 = 1.3.1 =
 * Security: each domain check now uses its own random challenge id, and the challenge endpoint answers only FeCommerce's request for that id. Someone repeatedly reading /wp-json/fecommerce/v1/challenge can no longer make Approve or Connected Framer sites fail.
 * The Approve screen labels the Framer project name and domains as sent by the Framer plugin and not verified.
@@ -112,6 +116,9 @@ If you redistribute or modify this plugin, keep this copyright notice and the li
 * Initial release.
 
 == Upgrade Notice ==
+
+= 1.3.2 =
+Shows a clear notice, with the fix, if your store's security settings slow down FeCommerce. Safe to update.
 
 = 1.3.1 =
 Security update for connecting to Framer. Safe to update.
