@@ -64,6 +64,7 @@ if (!defined('FECWF_REVIEWS_PER_HOUR')) {
 }
 
 require_once __DIR__ . '/includes/connect.php';
+require_once __DIR__ . '/includes/connected-sites.php';
 require_once __DIR__ . '/includes/site-allowlist.php';
 
 /*

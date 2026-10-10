@@ -221,6 +221,58 @@
     font-size: 13px;
 }
 
+/* Connected Framer sites */
+.fecwf-sites-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--fecwf-border);
+    border-radius: 10px;
+}
+.fecwf-site {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+    margin: 0;
+    padding: 12px 14px;
+}
+.fecwf-site + .fecwf-site {
+    border-top: 1px solid var(--fecwf-border);
+}
+.fecwf-site-main {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    flex: 1 1 260px;
+}
+.fecwf-site-name {
+    font-size: 14px;
+    overflow-wrap: anywhere;
+}
+.fecwf-site-origins {
+    font-family: var(--fecwf-mono);
+    font-size: 12px;
+    color: var(--fecwf-muted);
+    overflow-wrap: anywhere;
+}
+.fecwf-site-dates {
+    font-size: 12px;
+    color: var(--fecwf-muted);
+}
+.fecwf-sites-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 12px;
+}
+.fecwf-sites-foot form {
+    margin: 0;
+}
+
 /* Steps */
 .fecwf-steps {
     list-style: none;
@@ -397,6 +449,7 @@
 /* Codes and URLs read left to right, even in a right-to-left admin language. */
 .fecwf .fecwf-code,
 .fecwf-hosts,
+.fecwf-site-origins,
 .fecwf .fecwf-sites,
 .fecwf .fecwf-chip,
 .fecwf-meta strong {
