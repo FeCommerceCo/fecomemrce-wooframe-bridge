@@ -72,6 +72,7 @@ If you redistribute or modify this plugin, keep this copyright notice and the li
 * All requests go to FeCommerce's API at api-v2.fecommerce.co instead of auth.fecommerce.co.
 * Several Framer projects share one store connection. Disconnect all Framer sites replaces Regenerate and Disconnect.
 * New: Connected Framer sites lists every connected Framer project, with Disconnect for each one.
+* New: requests signed by FeCommerce's API carry the shopper's real IP for WooCommerce's geolocation (tax and shipping) and fraud and rate-limit plugins. Unsigned requests are unchanged.
 
 = 1.2.1 =
 * Redesigned WooCommerce → FeCommerce screen in FeCommerce's colours: status badge, cards, and a connection key that's hidden until you click the eye button, with a Copy button.
