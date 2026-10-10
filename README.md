@@ -57,7 +57,7 @@ The first approval creates the store's connection: a connection id (`sid`, serve
 
 Then open the FeCommerce plugin in Framer, click **Connect store**, and enter the code it shows under **WooCommerce → FeCommerce**.
 
-To check the plugin is active, open `https://your-store.example/wp-json/fecommerce/v1/status`. You should see `"version": "1.2.1"`.
+To check the plugin is active, open `https://your-store.example/wp-json/fecommerce/v1/status`. You should see `"version": "1.3.0"`.
 
 If Approve fails with "couldn't confirm your site", a security plugin, firewall or page cache is blocking or caching `/wp-json/fecommerce/v1/challenge`. Allow that address and try again.
 
@@ -80,7 +80,8 @@ This includes every tracked plugin file, `assets/` too, in the folder WordPress 
 
 ## Changelog
 
-### Unreleased
+### 1.3.0
+- Requires the FeCommerce plugin in Framer with pairing. Connection keys are no longer used: the key screens are removed.
 - Connecting to Framer now uses a pairing code: enter the code the FeCommerce plugin in Framer shows, check the project on the Approve screen, and approve. There is no connection key to copy any more.
 - All requests go to FeCommerce's API at `https://api-v2.fecommerce.co`. The `auth.fecommerce.co` connection service is no longer used.
 - The first approval stores the store's connection id and a request-signing secret. Several Framer projects share one connection.

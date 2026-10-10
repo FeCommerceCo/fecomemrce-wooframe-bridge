@@ -4,7 +4,7 @@ Tags: woocommerce, framer, cors, headless, rest-api
 Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.2.1
+Stable tag: 1.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -67,7 +67,8 @@ If you redistribute or modify this plugin, keep this copyright notice and the li
 
 == Changelog ==
 
-= Unreleased =
+= 1.3.0 =
+* Requires the FeCommerce plugin in Framer with pairing. Connection keys are no longer used: the key screens are removed.
 * Connect to Framer with a pairing code: enter the code the FeCommerce plugin in Framer shows, check the project, and approve. No connection key to copy.
 * All requests go to FeCommerce's API at api-v2.fecommerce.co instead of auth.fecommerce.co.
 * Several Framer projects share one store connection. Disconnect all Framer sites replaces Regenerate and Disconnect.
@@ -107,6 +108,9 @@ If you redistribute or modify this plugin, keep this copyright notice and the li
 * Initial release.
 
 == Upgrade Notice ==
+
+= 1.3.0 =
+Connect with a pairing code instead of a connection key. After updating, open the FeCommerce plugin in Framer, click Connect store, and enter its code under WooCommerce → FeCommerce.
 
 = 1.2.1 =
 Redesigned settings screen with show/hide and Copy for the connection key. Safe to update.
