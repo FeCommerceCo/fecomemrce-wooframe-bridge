@@ -13,4 +13,5 @@ foreach (array('fecwf_connection', 'fecwf_store_secret', 'fecwf_restrict_sites',
     delete_option($fecwf_option);
 }
 delete_transient('fecwf_challenge');
+// Challenges from 1.3.1 are stored per id and expire within two minutes on their own.
 delete_transient('fecwf_sites');

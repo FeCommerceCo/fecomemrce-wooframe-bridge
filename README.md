@@ -57,7 +57,7 @@ The first approval creates the store's connection: a connection id (`sid`, serve
 
 Then open the FeCommerce plugin in Framer, click **Connect store**, and enter the code it shows under **WooCommerce → FeCommerce**.
 
-To check the plugin is active, open `https://your-store.example/wp-json/fecommerce/v1/status`. You should see `"version": "1.3.0"`.
+To check the plugin is active, open `https://your-store.example/wp-json/fecommerce/v1/status`. You should see `"version": "1.3.1"`.
 
 If Approve fails with "couldn't confirm your site", a security plugin, firewall or page cache is blocking or caching `/wp-json/fecommerce/v1/challenge`. Allow that address and try again.
 
@@ -79,6 +79,11 @@ git archive --format=zip --prefix=fecommerce-bridge-for-woocommerce/ \
 This includes every tracked plugin file, `assets/` too, in the folder WordPress expects. Files marked `export-ignore` in `.gitattributes` are left out. Before uploading the release, open the ZIP and check that `assets/` is there.
 
 ## Changelog
+
+### 1.3.1
+
+- Security: each domain check uses its own random challenge id; `/wp-json/fecommerce/v1/challenge?id=…` answers only that one, so polling the endpoint can't make Approve or Connected Framer sites fail.
+- The Approve screen labels the project name and domains as sent by the Framer plugin and not verified.
 
 ### 1.3.0
 - Requires the FeCommerce plugin in Framer with pairing. Connection keys are no longer used: the key screens are removed.
