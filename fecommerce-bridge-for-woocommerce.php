@@ -65,6 +65,7 @@ if (!defined('FECWF_REVIEWS_PER_HOUR')) {
 
 require_once __DIR__ . '/includes/connect.php';
 require_once __DIR__ . '/includes/connected-sites.php';
+require_once __DIR__ . '/includes/signed-requests.php';
 require_once __DIR__ . '/includes/site-allowlist.php';
 
 /*
@@ -387,8 +388,10 @@ function fecwf_submit_review(WP_REST_Request $request)
 
     // At most 5 submissions per address per 10 minutes, on top of WordPress's
     // own flood check. REMOTE_ADDR, not a forwarded-for header, which the
-    // sender controls. Behind a proxy every visitor shares one address; the
-    // store-wide cap below is what bounds the total either way.
+    // sender controls. Through FeCommerce's API it is the shopper's address
+    // when the request is signed (includes/signed-requests.php). Behind any
+    // other proxy every visitor shares one address; the store-wide cap below
+    // is what bounds the total either way.
     $ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
     $limit_key = 'fecwf_rv_' . md5($ip);
     $count = (int) get_transient($limit_key);
