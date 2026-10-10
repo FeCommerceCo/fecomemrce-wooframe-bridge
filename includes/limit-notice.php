@@ -28,13 +28,30 @@ define('FECWF_LIMIT_CRON', 'fecwf_check_store_limited');
 define('FECWF_ALLOW_RULE', '(cf.worker.upstream_zone eq "fecommerce.co")');
 
 /** storeLimited from the API, cleaned, or null when absent or malformed. */
+/**
+ * A storeLimited time as a unix timestamp, 0 when unusable. The API sends ISO
+ * 8601 strings ("2026-10-10T09:12:00.000Z", contract §5.14); a plain number of
+ * seconds is accepted too.
+ */
+function fecwf_limited_time($value)
+{
+    if (is_int($value) || (is_string($value) && ctype_digit($value))) {
+        return max(0, (int) $value);
+    }
+    if (!is_string($value) || $value === '') {
+        return 0;
+    }
+    $time = strtotime($value);
+    return $time === false ? 0 : max(0, $time);
+}
+
 function fecwf_clean_limited($raw)
 {
     if (!is_array($raw)) {
         return null;
     }
-    $since = isset($raw['since']) ? (int) $raw['since'] : 0;
-    $last = isset($raw['lastAt']) ? (int) $raw['lastAt'] : 0;
+    $since = isset($raw['since']) ? fecwf_limited_time($raw['since']) : 0;
+    $last = isset($raw['lastAt']) ? fecwf_limited_time($raw['lastAt']) : 0;
     $events = isset($raw['events24h']) ? max(0, (int) $raw['events24h']) : 0;
     if ($since <= 0 && $last <= 0) {
         return null;
