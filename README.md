@@ -28,6 +28,8 @@ Browsers only let a website read another site's data when that site says it may 
 
 The first approval creates the store's connection: a connection id (`sid`, served from `/status`) and a secret that FeCommerce signs its requests to your store with (stored like a password, never shown). Every later Framer project joins the same connection. The API is contacted only when an admin enters a code, approves, cancels or manages connected sites. It keeps your store's hostname, its name, the connection id and dates; nothing about products, orders or customers. Your site address must be HTTPS at the root of the domain (no sub-folder).
 
+**Connected Framer sites** lists every Framer project connected to your store (name, addresses, when it connected and was last used), loaded when you ask for it. **Disconnect** next to one stops that site at once and leaves the others running. Loading the list and disconnecting one site each carry a fresh domain proof, like Approve.
+
 **Disconnect all Framer sites** clears the connection here. FeCommerce serves a Framer site only while your store's `/status` still names its connection, so every connected site stops within about a minute, without asking FeCommerce.
 
 **Optional: restrict which sites may use your store.** Off by default. When on, the public routes only answer browser requests from the site addresses you list, plus your own site and Framer's addresses (so syncing keeps working). Requests from unlisted sites get `403`. This is a browser restriction, not access control: a server or script can send any `Origin` header or none, and WooCommerce's Store API is public on every store. Cart and checkout keep WooCommerce's own protections. The screen suggests addresses recently seen using your store (at most 20, updated at most daily per address).
@@ -81,6 +83,7 @@ This includes every tracked plugin file, `assets/` too, in the folder WordPress 
 - All requests go to FeCommerce's API at `https://api-v2.fecommerce.co`. The `auth.fecommerce.co` connection service is no longer used.
 - The first approval stores the store's connection id and a request-signing secret. Several Framer projects share one connection.
 - **Disconnect all Framer sites** replaces Regenerate and Disconnect.
+- New: **Connected Framer sites** lists every connected Framer project with Disconnect for each one.
 
 ### 1.2.1
 - Redesigned WooCommerce → FeCommerce screen in FeCommerce's colours: status badge, cards, and a connection key that's hidden until you click the eye button, with a Copy button.
