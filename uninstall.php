@@ -9,9 +9,11 @@
 if (!defined('WP_UNINSTALL_PLUGIN')) {
     exit;
 }
-foreach (array('fecwf_connection', 'fecwf_store_secret', 'fecwf_restrict_sites', 'fecwf_allowed_sites', 'fecwf_seen_sites') as $fecwf_option) {
+foreach (array('fecwf_connection', 'fecwf_store_secret', 'fecwf_restrict_sites', 'fecwf_allowed_sites', 'fecwf_seen_sites', 'fecwf_store_limited') as $fecwf_option) {
     delete_option($fecwf_option);
 }
 delete_transient('fecwf_challenge');
 // Challenges from 1.3.1 are stored per id and expire within two minutes on their own.
 delete_transient('fecwf_sites');
+wp_clear_scheduled_hook('fecwf_check_store_limited');
+delete_metadata('user', 0, 'fecwf_limit_dismissed_until', '', true);
