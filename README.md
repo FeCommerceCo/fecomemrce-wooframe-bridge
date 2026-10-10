@@ -1,6 +1,6 @@
 # FeCommerce Bridge for WooCommerce
 
-A small WordPress plugin that lets your [Framer](https://framer.com) site and the FeCommerce Framer plugin talk to your WooCommerce store directly, and issues your store's Framer **connection key**.
+A small WordPress plugin that lets your [Framer](https://framer.com) site and the FeCommerce Framer plugin work with your WooCommerce store, and connects your store to Framer sites with a **pairing code**.
 
 ## Why it's needed
 
@@ -19,16 +19,16 @@ Browsers only let a website read another site's data when that site says it may 
 - `https://*.framercanvas.com` (canvas preview)
 - `http://localhost` and `http://127.0.0.1`, only while `WP_DEBUG` is on
 
-**Connection key for Framer.** The FeCommerce Framer plugin, and the components it places on your site, only talk to a store named in a connection key signed by FeCommerce. They check the signature themselves. To get the key:
+**Connecting to Framer: pairing codes.** The FeCommerce Framer plugin and the components it places on your site talk to your store only through FeCommerce's API, `https://api-v2.fecommerce.co`, which knows your store's address because your store proved it owns its domain. To connect a Framer project:
 
-1. Go to **WooCommerce → FeCommerce** and click **Connect to Framer** (requires `manage_woocommerce`).
-2. The plugin makes a one-time random challenge and sends your store's address (`home_url()`) and the challenge to the FeCommerce connection service, `https://auth.fecommerce.co`.
-3. The service reads `GET /wp-json/fecommerce/v1/challenge` on your store once. Only your server can answer with the challenge, which proves the domain. It then reads one product id from `GET /wp-json/wc/store/v1/products` to check that WooCommerce answers there.
-4. The service signs a key naming your store. Copy it into the FeCommerce plugin in Framer.
+1. In Framer, open the FeCommerce plugin and click **Connect store**. It shows a code like `K7QP-92MX` that changes every 30 seconds.
+2. Go to **WooCommerce → FeCommerce** (requires `manage_woocommerce`), enter the code and click **Continue**. The plugin asks the API which Framer project the code belongs to.
+3. Check the project name and addresses on the Approve screen and click **Approve**. The plugin makes a one-time random challenge and sends the code, your store's address (`home_url()`), the challenge and your site title to the API. The API reads `GET /wp-json/fecommerce/v1/challenge` on your store once (only your server can answer with the challenge, which proves the domain) and reads one product id from `GET /wp-json/wc/store/v1/products` to check that WooCommerce answers there.
+4. Back in Framer, confirm "Is this your store?". Only then does the Framer project receive its site token.
 
-The service is contacted only when an admin clicks **Connect to Framer**, **Regenerate** or **Disconnect**. It keeps your store's hostname, a connection id and dates; nothing about products, orders or customers. Your site address must be HTTPS at the root of the domain (no sub-folder). The key is not a secret and is safe on your published Framer site.
+The first approval creates the store's connection: a connection id (`sid`, served from `/status`) and a secret that FeCommerce signs its requests to your store with (stored like a password, never shown). Every later Framer project joins the same connection. The API is contacted only when an admin enters a code, approves, cancels or manages connected sites. It keeps your store's hostname, its name, the connection id and dates; nothing about products, orders or customers. Your site address must be HTTPS at the root of the domain (no sub-folder).
 
-Published Framer sites check their key themselves, so Regenerate and Disconnect don't switch off sites that are already live. To stop a site immediately, use the restriction below.
+**Disconnect all Framer sites** clears the connection here. FeCommerce serves a Framer site only while your store's `/status` still names its connection, so every connected site stops within about a minute, without asking FeCommerce.
 
 **Optional: restrict which sites may use your store.** Off by default. When on, the public routes only answer browser requests from the site addresses you list, plus your own site and Framer's addresses (so syncing keeps working). Requests from unlisted sites get `403`. This is a browser restriction, not access control: a server or script can send any `Origin` header or none, and WooCommerce's Store API is public on every store. Cart and checkout keep WooCommerce's own protections. The screen suggests addresses recently seen using your store (at most 20, updated at most daily per address).
 
@@ -38,8 +38,8 @@ Published Framer sites check their key themselves, so Regenerate and Disconnect 
 
 | Route | What it returns |
 |---|---|
-| `GET /wp-json/fecommerce/v1/challenge` | `{ challenge }` while a Connect, Regenerate or Disconnect is in progress (2 minutes at most), `404` otherwise. `Cache-Control: no-store` |
-| `GET /wp-json/fecommerce/v1/status` | `{ plugin, version, woocommerce, stripe, connect }` so the Framer plugin can tell this plugin is installed and up to date |
+| `GET /wp-json/fecommerce/v1/challenge` | `{ challenge }` while an Approve or a connected-sites request is in progress (2 minutes at most), `404` otherwise. Single use. `Cache-Control: no-store` |
+| `GET /wp-json/fecommerce/v1/status` | `{ plugin, version, woocommerce, stripe, connect, sid }`: whether this plugin is installed and up to date, and the store's connection id (`null` when disconnected). Cached 60 seconds. |
 | `GET /wp-json/fecommerce/v1/config` | `{ stripe: { publishableKey } }`: the **publishable** key from your WooCommerce Stripe settings (live or test, matching the gateway's mode), or `null`. Your checkout reads it at runtime, so the key never needs to be copied into your Framer project. Secret keys are never read or returned. |
 | `POST /wp-json/fecommerce/v1/reviews` | Creates a product review from your Framer site's review form. Body: `{ productId, rating, review, author, email }`. Goes through WordPress's own comment pipeline, so your duplicate, flood and spam settings (Akismet etc.) all apply, and every review is held for moderation whatever your discussion settings. Respects "Enable reviews", "Ratings required" and "Verified owners only" (refused, since a form on another site can't prove ownership). At most 5 per visitor per 10 minutes and 30 per hour store-wide (`define('FECWF_REVIEWS_PER_HOUR', …)` in `wp-config.php` to change). An optional `website` field is a honeypot: when filled in, the review is dropped with a normal-looking answer. |
 
@@ -51,11 +51,11 @@ Published Framer sites check their key themselves, so Regenerate and Disconnect 
 
 **Updating from 1.1 or older:** the plugin was renamed in 1.2.0, so WordPress installs it next to the old one instead of replacing it. Activating it switches the old `fecommerce-wooframe-bridge` off automatically. Then delete the old plugin. Your settings and connection are kept.
 
-Then go to **WooCommerce → FeCommerce**, click **Connect to Framer**, and copy the connection key into the FeCommerce plugin in Framer.
+Then open the FeCommerce plugin in Framer, click **Connect store**, and enter the code it shows under **WooCommerce → FeCommerce**.
 
 To check the plugin is active, open `https://your-store.example/wp-json/fecommerce/v1/status`. You should see `"version": "1.2.1"`.
 
-If Connect fails with "couldn't confirm your site", a security plugin, firewall or page cache is blocking or caching `/wp-json/fecommerce/v1/challenge`. Allow that address and try again.
+If Approve fails with "couldn't confirm your site", a security plugin, firewall or page cache is blocking or caching `/wp-json/fecommerce/v1/challenge`. Allow that address and try again.
 
 ## Requirements
 
@@ -75,6 +75,12 @@ git archive --format=zip --prefix=fecommerce-bridge-for-woocommerce/ \
 This includes every tracked plugin file, `assets/` too, in the folder WordPress expects. Files marked `export-ignore` in `.gitattributes` are left out. Before uploading the release, open the ZIP and check that `assets/` is there.
 
 ## Changelog
+
+### Unreleased
+- Connecting to Framer now uses a pairing code: enter the code the FeCommerce plugin in Framer shows, check the project on the Approve screen, and approve. There is no connection key to copy any more.
+- All requests go to FeCommerce's API at `https://api-v2.fecommerce.co`. The `auth.fecommerce.co` connection service is no longer used.
+- The first approval stores the store's connection id and a request-signing secret. Several Framer projects share one connection.
+- **Disconnect all Framer sites** replaces Regenerate and Disconnect.
 
 ### 1.2.1
 - Redesigned WooCommerce → FeCommerce screen in FeCommerce's colours: status badge, cards, and a connection key that's hidden until you click the eye button, with a Copy button.
