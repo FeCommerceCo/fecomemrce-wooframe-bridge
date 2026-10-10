@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       FeCommerce Bridge for WooCommerce
  * Plugin URI:        https://www.fecommerce.co/products/plugins/woocommerce
- * Description:       Lets your Framer site and the FeCommerce Framer plugin talk to this WooCommerce store directly, and issues the store's Framer connection key.
+ * Description:       Lets your Framer site and the FeCommerce Framer plugin work with this WooCommerce store, and connects the store to Framer sites with a pairing code.
  * Version:           1.2.1
  * Author:            FeCommerce Co
  * Author URI:        https://fecommerce.co
@@ -252,15 +252,14 @@ add_action('rest_api_init', function () {
                 'woocommerce' => defined('WC_VERSION'),
                 'stripe' => fecwf_stripe_publishable_key() !== null,
                 'connect' => true,
-                // The id of this store's current connection key, or null when
-                // disconnected. The Framer plugin and components accept a key
-                // only while the store still names it here, so Regenerate and
-                // Disconnect take effect without asking FeCommerce. Not a
-                // secret: it is inside the key, which is published with every
-                // Framer site that uses it.
+                // The id of this store's connection with FeCommerce, or null
+                // when disconnected. FeCommerce serves a Framer site only
+                // while the store still names it here, so Disconnect takes
+                // effect without asking FeCommerce. Not a secret: it only
+                // identifies the connection.
                 'sid' => $connection ? $connection['sid'] : null,
             ));
-            // Short, so a regenerated or disconnected key stops working
+            // Short, so a disconnected store stops serving Framer sites
             // within about a minute.
             $response->header('Cache-Control', 'public, max-age=60');
             return $response;

@@ -8,7 +8,7 @@ Stable tag: 1.2.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Lets your Framer site and the FeCommerce Framer plugin talk to your WooCommerce store directly, and issues your store's Framer connection key.
+Lets your Framer site and the FeCommerce Framer plugin work with your WooCommerce store, and connects your store to Framer sites with a pairing code.
 
 == Description ==
 
@@ -20,14 +20,14 @@ Browsers only let a website read another site's data when that site says it may 
 
 **Everything else is unchanged.** Every other REST route keeps WordPress's default behaviour.
 
-**Connection key for Framer.** The FeCommerce Framer plugin only works with stores that have a connection key. Under **WooCommerce → FeCommerce**, click **Connect to Framer**. This plugin then sends your store's address to the FeCommerce connection service (auth.fecommerce.co). The service confirms the address belongs to your site by reading `/wp-json/fecommerce/v1/challenge` once, checks that WooCommerce answers by reading one product id from `/wp-json/wc/store/v1/products`, and signs a key naming your store. Paste the key into the FeCommerce plugin in Framer. The service keeps your store's hostname, a connection id and dates; nothing about your products, orders or customers. It is contacted only when you click Connect, Regenerate or Disconnect.
+**Connect with a pairing code.** In Framer, the FeCommerce plugin shows a short code that changes every 30 seconds. Enter it under **WooCommerce → FeCommerce**, check the Framer project's name and addresses, and click **Approve**; then confirm your store in Framer. Approve sends the code, your store's address and site title to FeCommerce's API (api-v2.fecommerce.co), which confirms the address belongs to your site by reading `/wp-json/fecommerce/v1/challenge` once and checks that WooCommerce answers at `/wp-json/wc/store/v1/products`. FeCommerce keeps your store's hostname, its name, a connection id and dates; nothing about your products, orders or customers. It is contacted only when you enter a code, approve, cancel or manage connected sites.
 
 **Optional: restrict which sites may use your store.** Off by default. When on, only the site addresses you list (plus your own site and Framer's editor) can show your store's products, cart and checkout to their visitors. It controls other websites, not direct access: your store's public product and cart API stays public, as on every WooCommerce store.
 
 It also adds four small endpoints:
 
 * `GET /wp-json/fecommerce/v1/status`: confirms the plugin is installed, and its version.
-* `GET /wp-json/fecommerce/v1/challenge`: answers the connection service's one-time domain check while you are connecting, and nothing (404) at any other time.
+* `GET /wp-json/fecommerce/v1/challenge`: answers FeCommerce's one-time domain check while you approve, and nothing (404) at any other time.
 * `GET /wp-json/fecommerce/v1/config`: your Stripe **publishable** key from WooCommerce Stripe settings, so your checkout can read it at runtime. Secret keys are never read or returned.
 * `POST /wp-json/fecommerce/v1/reviews`: product reviews from your Framer site's review form, through WordPress's own duplicate, flood and spam checks. Every review from it waits for your approval.
 
@@ -35,8 +35,8 @@ It also adds four small endpoints:
 
 1. Upload the plugin ZIP in **Plugins → Add New → Upload Plugin**, or install it from the plugin directory.
 2. Activate it.
-3. Go to **WooCommerce → FeCommerce** and click **Connect to Framer**.
-4. Copy the connection key into the FeCommerce plugin in Framer.
+3. In Framer, open the FeCommerce plugin and click **Connect store**.
+4. Enter the code it shows under **WooCommerce → FeCommerce**, approve, then confirm your store in Framer.
 
 Your site address (Settings → General) must start with `https://` and WordPress must be installed at the root of the domain, not in a sub-folder.
 
@@ -44,7 +44,7 @@ Your site address (Settings → General) must start with `https://` and WordPres
 
 = Does this expose my API keys or customer data? =
 
-No. Your API keys stay with you; this plugin adds CORS headers, four small endpoints and a settings screen. The connection key is not a password: it only proves to FeCommerce that the store is yours. Store API requests from other sites never carry cookies, so a customer's logged-in session can't be read by another website.
+No. Your API keys stay with you; this plugin adds CORS headers, four small endpoints and a settings screen. Connecting stores a connection id and a secret FeCommerce signs its requests with; the secret is never shown or sent anywhere. Store API requests from other sites never carry cookies, so a customer's logged-in session can't be read by another website.
 
 = Does this change CORS for the rest of my site? =
 
@@ -66,6 +66,11 @@ If you redistribute or modify this plugin, keep this copyright notice and the li
 "FeCommerce" and the FeCommerce logo are names of FeCommerce and are not licensed under the GPL. Forks must not present themselves as the official FeCommerce plugin.
 
 == Changelog ==
+
+= Unreleased =
+* Connect to Framer with a pairing code: enter the code the FeCommerce plugin in Framer shows, check the project, and approve. No connection key to copy.
+* All requests go to FeCommerce's API at api-v2.fecommerce.co instead of auth.fecommerce.co.
+* Several Framer projects share one store connection. Disconnect all Framer sites replaces Regenerate and Disconnect.
 
 = 1.2.1 =
 * Redesigned WooCommerce → FeCommerce screen in FeCommerce's colours: status badge, cards, and a connection key that's hidden until you click the eye button, with a Copy button.

@@ -1,24 +1,34 @@
 <?php
 /**
- * Connecting this store to Framer: the connection key.
+ * Connecting this store to Framer sites: pairing codes.
  *
  * The FeCommerce Framer plugin, and the components it places on a Framer site,
- * only talk to a store named in a connection key signed by FeCommerce. The key
- * is issued here, when a store admin clicks "Connect to Framer":
+ * talk to this store only through FeCommerce's API (api-v2.fecommerce.co),
+ * which knows the store's address from the moment the store proved it owns
+ * its domain. A Framer project is connected like this:
  *
- *   1. This plugin makes a one-time random challenge and keeps it for two
- *      minutes.
- *   2. It sends this store's address and the challenge to the FeCommerce
- *      connection service (auth.fecommerce.co).
- *   3. The service asks GET /wp-json/fecommerce/v1/challenge on this address.
- *      Only the server that really answers at this domain can return the
- *      challenge, which proves the domain.
- *   4. The service signs a key naming this store and returns it. The admin
- *      copies it into the FeCommerce plugin in Framer.
+ *   1. The FeCommerce plugin in Framer shows a short code (it changes every
+ *      30 seconds).
+ *   2. A store admin types it under WooCommerce → FeCommerce. This plugin asks
+ *      the API which Framer project the code belongs to (lookup), and shows
+ *      an Approve screen with the project's name and addresses.
+ *   3. Approve sends the code, this store's address and a one-time challenge
+ *      to the API (claim). The API reads GET /wp-json/fecommerce/v1/challenge
+ *      on this address. Only the server that really answers at this domain
+ *      can return the challenge, which proves the domain.
+ *   4. The person in Framer confirms "Is this your store?" there, and only
+ *      then does their project receive its site token.
  *
- * The service is contacted only when an admin clicks Connect, Regenerate or
- * Disconnect. It receives this store's address and the challenge, and keeps
- * the store's hostname, a connection id and dates. Nothing else is sent.
+ * The first claim creates the store's connection: a connection id (sid),
+ * served from /fecommerce/v1/status, and a secret the API signs its requests
+ * to this store with (includes/signed-requests.php). Every later Framer
+ * project joins the same connection. Disconnecting here clears both, and
+ * every connected Framer site stops within about a minute.
+ *
+ * The API is contacted only when an admin enters a code, approves or cancels,
+ * or manages connected sites. It receives this store's address, the code,
+ * the challenge and the store's name. Nothing about products, orders or
+ * customers.
  *
  * Copyright (C) 2026 FeCommerce (https://fecommerce.co)
  * Licensed under the GNU General Public License v2 or later (GPL-2.0-or-later).
@@ -29,26 +39,34 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+define('FECWF_API_BASE', 'https://api-v2.fecommerce.co');
 define('FECWF_CONNECTION_OPTION', 'fecwf_connection');
+define('FECWF_SECRET_OPTION', 'fecwf_store_secret');
 define('FECWF_CHALLENGE_TRANSIENT', 'fecwf_challenge');
+// Crockford base32, as the API issues codes.
+define('FECWF_CODE_ALPHABET', '0123456789ABCDEFGHJKMNPQRSTVWXYZ');
 
 /**
- * The connection service. Production unless wp-config.php opts into staging
- * for testing with define('FECWF_AUTH_URL', 'https://auth-staging.fecommerce.co').
- * No other address is accepted.
+ * FeCommerce's API. Always https://api-v2.fecommerce.co, except that a plugin
+ * developer may point it at the local mock server (http://localhost or
+ * 127.0.0.1) with define('FECWF_API_DEV_URL', 'http://localhost:8788') while
+ * WP_DEBUG is on. No other address is accepted.
  */
-function fecwf_auth_base()
+function fecwf_api_base()
 {
-    $allowed = array('https://auth.fecommerce.co', 'https://auth-staging.fecommerce.co');
-    if (defined('FECWF_AUTH_URL') && in_array(FECWF_AUTH_URL, $allowed, true)) {
-        return FECWF_AUTH_URL;
+    if (
+        defined('FECWF_API_DEV_URL') && defined('WP_DEBUG') && WP_DEBUG &&
+        is_string(FECWF_API_DEV_URL) &&
+        preg_match('/^http:\/\/(localhost|127\.0\.0\.1)(:[0-9]{1,5})?$/D', FECWF_API_DEV_URL)
+    ) {
+        return FECWF_API_DEV_URL;
     }
-    return $allowed[0];
+    return FECWF_API_BASE;
 }
 
 /**
- * This store's origin as the service will sign it ("https://host"), or a
- * WP_Error saying why this site can't be connected.
+ * This store's origin as the API knows it ("https://host"), or a WP_Error
+ * saying why this site can't be connected.
  */
 function fecwf_store_origin()
 {
@@ -68,11 +86,35 @@ function fecwf_store_origin()
     return 'https://' . strtolower($home['host']);
 }
 
-/** The saved connection: array('key', 'sid', 'store', 'issued_at', 'auth'), or null. */
+/**
+ * The store's connection: array('sid', 'store', 'issued_at'), or null.
+ *
+ * Bridge 1.2 saved a fec1 connection key here ('key'). The Framer plugin
+ * that used those keys was never released, and FeCommerce's API doesn't know
+ * their ids, so such a record counts as not connected.
+ */
 function fecwf_get_connection()
 {
     $c = get_option(FECWF_CONNECTION_OPTION);
-    return (is_array($c) && !empty($c['key']) && !empty($c['sid'])) ? $c : null;
+    if (!is_array($c) || isset($c['key']) || empty($c['sid']) || !preg_match('/^[a-z2-7]{26}$/D', (string) $c['sid'])) {
+        return null;
+    }
+    return $c;
+}
+
+/** The secret the API signs its requests with, or '' when not connected. */
+function fecwf_store_secret()
+{
+    $secret = get_option(FECWF_SECRET_OPTION);
+    return (is_string($secret) && preg_match('/^[A-Za-z0-9_-]{43}$/D', $secret)) ? $secret : '';
+}
+
+/** Forget the connection: /status names no sid, and every Framer site stops. */
+function fecwf_clear_connection()
+{
+    delete_option(FECWF_CONNECTION_OPTION);
+    delete_option(FECWF_SECRET_OPTION);
+    delete_transient('fecwf_sites');
 }
 
 /** 32 random bytes, base64url without padding (43 characters). */
@@ -84,23 +126,15 @@ function fecwf_new_challenge()
 }
 
 /*
- * GET /fecommerce/v1/challenge: answers the service's domain check with the
+ * GET /fecommerce/v1/challenge: answers the API's domain check with the
  * challenge this plugin is waiting on, and 404 at any other time.
  *
  * SINGLE USE: the challenge is deleted the moment it is read, so the one read
- * the service makes is the only one that can succeed. Someone polling this
- * address during the two-minute window can at most make that Connect fail
- * (the admin clicks again); they can't reuse the challenge to request keys or
- * revocations of their own, because the service reads the challenge from
- * this address itself, and by then it is gone. Responses are never cached, so
- * a page cache or CDN can't replay one either.
- *
- * Even a key issued to someone else (say, a cache that ignores no-store
- * replayed a challenge) is useless: Framer accepts only the key whose sid this
- * store's /fecommerce/v1/status names, which is the one saved here. And a key
- * grants nothing secret anyway: it is published with every Framer site that
- * uses the store. What's left is nuisance: failed Connects, and attempts
- * counted against the store's daily limit at the service.
+ * the API makes is the only one that can succeed. Someone polling this
+ * address during the two-minute window can at most make that Approve fail
+ * (the admin clicks again); they can't reuse the challenge, because the API
+ * reads it from this address itself, and by then it is gone. Responses are
+ * never cached, so a page cache or CDN can't replay one either.
  */
 add_action('rest_api_init', function () {
     register_rest_route(FECWF_NAMESPACE, '/challenge', array(
@@ -121,84 +155,225 @@ add_action('rest_api_init', function () {
     ));
 });
 
-/** What a service error means for the admin. */
+/** What an API error means for the admin. */
 function fecwf_service_message($code)
 {
     $messages = array(
-        'invalid_store' => 'The connection service didn\'t accept this site\'s address. It must be a public HTTPS domain without a sub-folder.',
-        'store_unreachable' => 'The connection service couldn\'t reach your site. Make sure it\'s online and publicly reachable, then try again.',
+        'code_not_found' => 'That code isn\'t valid. Codes change every 30 seconds: check the one the FeCommerce plugin in Framer shows now, and keep the plugin open while you enter it.',
+        'code_in_use' => 'That code was already entered from another store.',
+        'wrong_state' => 'That code was already used. In Framer, start connecting again for a new code.',
+        'already_used' => 'That code was already used. In Framer, start connecting again for a new code.',
+        'pairing_expired' => 'That code has expired. In Framer, start connecting again for a new code.',
+        'pairing_cancelled' => 'This connection was cancelled. In Framer, start connecting again for a new code.',
+        'invalid_store' => 'FeCommerce didn\'t accept this site\'s address. It must be a public HTTPS domain without a sub-folder.',
+        'store_unreachable' => 'FeCommerce couldn\'t reach your site. Make sure it\'s online and publicly reachable, then try again.',
         'store_redirects' => 'Your site address redirects somewhere else (for example to or from www). Set Settings → General → Site Address to the address your site actually loads on, then try again.',
-        'challenge_failed' => 'The connection service couldn\'t confirm your site. A security plugin, firewall or cache may be blocking or caching /wp-json/fecommerce/v1/challenge. Allow that address, then try again.',
-        'not_woocommerce' => 'The connection service couldn\'t reach your store\'s WooCommerce Store API (/wp-json/wc/store/v1/products). Make sure WooCommerce is active and that no security plugin or firewall blocks that address, then try again.',
+        'bad_store_response' => 'Your site answered FeCommerce with something unexpected. A security plugin, firewall or cache may be changing /wp-json/fecommerce/v1/challenge. Allow that address, then try again.',
+        'challenge_failed' => 'FeCommerce couldn\'t confirm your site. A security plugin, firewall or cache may be blocking or caching /wp-json/fecommerce/v1/challenge. Allow that address, then try again.',
+        'not_woocommerce' => 'FeCommerce couldn\'t reach your store\'s WooCommerce Store API (/wp-json/wc/store/v1/products). Make sure WooCommerce is active and that no security plugin or firewall blocks that address, then try again.',
+        'unknown_sid' => 'FeCommerce doesn\'t recognise this store\'s connection.',
+        'unknown_site' => 'That Framer site isn\'t connected to this store any more.',
         'rate_limited' => 'Too many attempts. Wait a few minutes and try again.',
-        'unknown_sid' => 'The connection service doesn\'t recognise this connection.',
+        'invalid_request' => 'FeCommerce didn\'t accept the request. Check the code and try again.',
     );
-    return isset($messages[$code]) ? $messages[$code] : 'The connection service returned an error. Try again in a few minutes.';
+    return isset($messages[$code]) ? $messages[$code] : 'FeCommerce returned an error. Try again in a few minutes.';
 }
 
 /**
- * POST to the connection service with a fresh challenge, and clear the
- * challenge afterwards whatever happened. Returns the decoded body or WP_Error.
+ * POST to FeCommerce's API. With $prove_domain, a fresh challenge is added to
+ * the body and cleared afterwards whatever happened. Returns the decoded body
+ * or a WP_Error whose code is 'fecwf_service_<api error>'.
  */
-function fecwf_call_service($path, array $body)
+function fecwf_api_post($path, array $body, $prove_domain = false)
 {
-    $body['challenge'] = fecwf_new_challenge();
-    $response = wp_remote_post(fecwf_auth_base() . $path, array(
+    if ($prove_domain) {
+        $body['challenge'] = fecwf_new_challenge();
+    }
+    $response = wp_remote_post(fecwf_api_base() . $path, array(
         'timeout' => 20,
         'redirection' => 0,
         'headers' => array('Content-Type' => 'application/json', 'Accept' => 'application/json'),
         'user-agent' => 'FeCommerce-Bridge/' . FECWF_VERSION,
         'body' => wp_json_encode($body),
     ));
-    delete_transient(FECWF_CHALLENGE_TRANSIENT);
+    if ($prove_domain) {
+        delete_transient(FECWF_CHALLENGE_TRANSIENT);
+    }
 
     if (is_wp_error($response)) {
-        return new WP_Error('fecwf_network', 'Your server couldn\'t reach the FeCommerce connection service (' . $response->get_error_message() . '). Check that outgoing HTTPS requests are allowed.');
+        return new WP_Error('fecwf_network', 'Your server couldn\'t reach FeCommerce (' . $response->get_error_message() . '). Check that outgoing HTTPS requests are allowed.');
     }
     $status = (int) wp_remote_retrieve_response_code($response);
     $data = json_decode((string) wp_remote_retrieve_body($response), true);
-    if ($status !== 200 || !is_array($data)) {
-        $code = (is_array($data) && isset($data['error'])) ? (string) $data['error'] : 'http_' . $status;
-        return new WP_Error('fecwf_service_' . $code, fecwf_service_message($code));
+    if ($status < 200 || $status > 299 || !is_array($data)) {
+        $code = (is_array($data) && isset($data['error']) && is_string($data['error'])) ? $data['error'] : 'http_' . $status;
+        $message = fecwf_service_message($code);
+        // The reference lets FeCommerce support find the request.
+        if (is_array($data) && isset($data['requestId']) && is_string($data['requestId']) && preg_match('/^[A-Za-z0-9._:-]{1,64}$/D', $data['requestId'])) {
+            $message .= ' (Reference: ' . $data['requestId'] . ')';
+        }
+        return new WP_Error('fecwf_service_' . $code, $message);
     }
     return $data;
 }
 
-/** Issue a new key for this store and return the connection, or WP_Error. */
-function fecwf_register()
+/**
+ * A code as typed ("m3vd 48ta", "M3VD-48TA") → "M3VD48TA", or '' when it
+ * can't be a code. Spaces and dashes are ignored, O reads as 0 and I/L as 1,
+ * as the API does.
+ */
+function fecwf_normalize_code($raw)
+{
+    $code = strtoupper(preg_replace('/[\s-]+/', '', (string) $raw));
+    $code = strtr($code, array('O' => '0', 'I' => '1', 'L' => '1'));
+    if (strlen($code) !== 8 || strspn($code, FECWF_CODE_ALPHABET) !== 8) {
+        return '';
+    }
+    return $code;
+}
+
+/** "M3VD48TA" → "M3VD-48TA" */
+function fecwf_display_code($code)
+{
+    return substr($code, 0, 4) . '-' . substr($code, 4);
+}
+
+/** A Framer project's name as shown here: plain text, at most 80 characters. */
+function fecwf_clean_project_name($raw)
+{
+    $name = trim(sanitize_text_field(is_string($raw) ? $raw : ''));
+    if (function_exists('mb_substr')) {
+        $name = mb_substr($name, 0, 80);
+    } else {
+        $name = substr($name, 0, 80);
+    }
+    return $name !== '' ? $name : 'Untitled project';
+}
+
+/** Up to 10 bare hostnames, anything else dropped. */
+function fecwf_clean_hostnames($raw)
+{
+    $out = array();
+    foreach (is_array($raw) ? $raw : array() as $host) {
+        $host = strtolower(trim(is_string($host) ? $host : ''));
+        if ($host !== '' && strlen($host) <= 253 && preg_match('/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/D', $host)) {
+            $out[] = $host;
+        }
+    }
+    return array_slice(array_values(array_unique($out)), 0, 10);
+}
+
+/** The store's name for the Framer plugin: the site title, at most 80 characters. */
+function fecwf_store_name()
+{
+    $name = trim(wp_strip_all_tags(get_bloginfo('name')));
+    return function_exists('mb_substr') ? mb_substr($name, 0, 80) : substr($name, 0, 80);
+}
+
+/*
+ * ─── The pairing in progress ───────────────────────────────────────────────
+ *
+ * Between Lookup and Approve, the code and what the API said about it are kept
+ * for the admin who entered it, until the API's approval deadline.
+ */
+
+function fecwf_pending_key()
+{
+    return 'fecwf_pair_' . get_current_user_id();
+}
+
+/** array('code', 'projectName', 'hostnames', 'createdAt', 'approveBy'), or null. */
+function fecwf_get_pending()
+{
+    $p = get_transient(fecwf_pending_key());
+    if (!is_array($p) || empty($p['code']) || empty($p['approveBy']) || (int) $p['approveBy'] <= time()) {
+        return null;
+    }
+    return $p;
+}
+
+/** Ask the API which Framer project a code belongs to. The pending pairing, or WP_Error. */
+function fecwf_lookup($code)
 {
     $origin = fecwf_store_origin();
     if (is_wp_error($origin)) {
         return $origin;
     }
-    $data = fecwf_call_service('/v1/register', array('store' => $origin));
+    $data = fecwf_api_post('/v1/pair/lookup', array('code' => $code, 'store' => $origin));
     if (is_wp_error($data)) {
         return $data;
     }
-    $key = isset($data['key']) ? (string) $data['key'] : '';
-    $sid = isset($data['sid']) ? (string) $data['sid'] : '';
-    $store = isset($data['store']) ? (string) $data['store'] : '';
-    if (!preg_match('/^fec1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/D', $key) || strlen($key) > 1024 || !preg_match('/^[a-z2-7]{26}$/', $sid) || $store !== $origin) {
-        return new WP_Error('fecwf_bad_response', 'The connection service returned an unexpected answer. Try again in a few minutes.');
+    $approve_by = isset($data['approveBy']) ? (int) $data['approveBy'] : 0;
+    if (!isset($data['projectName']) || $approve_by <= time()) {
+        return new WP_Error('fecwf_bad_response', 'FeCommerce returned an unexpected answer. Try again in a few minutes.');
     }
     return array(
-        'key' => $key,
-        'sid' => $sid,
-        'store' => $store,
-        'issued_at' => time(),
-        'auth' => fecwf_auth_base(),
+        'code' => $code,
+        'projectName' => fecwf_clean_project_name($data['projectName']),
+        'hostnames' => fecwf_clean_hostnames(isset($data['hostnames']) ? $data['hostnames'] : array()),
+        'createdAt' => isset($data['createdAt']) ? (int) $data['createdAt'] : 0,
+        // Never longer than the API's own 5 minutes, whatever it answers.
+        'approveBy' => min($approve_by, time() + 5 * MINUTE_IN_SECONDS),
     );
 }
 
-/** Record a key as revoked with the service. True, or WP_Error. */
-function fecwf_revoke(array $connection)
+/**
+ * Approve: claim the pairing with a domain proof. Saves the connection the
+ * first time, before returning, so /status names the sid by the time the
+ * person in Framer confirms. Returns the claim's binding info or WP_Error.
+ */
+function fecwf_claim(array $pending)
 {
     $origin = fecwf_store_origin();
     if (is_wp_error($origin)) {
         return $origin;
     }
-    $data = fecwf_call_service('/v1/revoke', array('store' => $origin, 'sid' => $connection['sid']));
-    return is_wp_error($data) ? $data : true;
+    $connection = fecwf_get_connection();
+    $body = array('code' => $pending['code'], 'store' => $origin);
+    $name = fecwf_store_name();
+    if ($name !== '') {
+        $body['storeName'] = $name;
+    }
+    if ($connection) {
+        $body['sid'] = $connection['sid'];
+    }
+    $data = fecwf_api_post('/v1/pair/claim', $body, true);
+
+    // A sid the API doesn't know (lost on its side, or revoked there) can't be
+    // joined: start a new connection instead. Sites on the old sid had
+    // already stopped working.
+    if ($connection && is_wp_error($data) && $data->get_error_code() === 'fecwf_service_unknown_sid') {
+        fecwf_clear_connection();
+        $connection = null;
+        unset($body['sid']);
+        $data = fecwf_api_post('/v1/pair/claim', $body, true);
+    }
+    if (is_wp_error($data)) {
+        return $data;
+    }
+
+    $sid = isset($data['sid']) ? (string) $data['sid'] : '';
+    $secret = isset($data['storeSecret']) ? (string) $data['storeSecret'] : '';
+    if (
+        !isset($data['status']) || $data['status'] !== 'approved' ||
+        !preg_match('/^[a-z2-7]{26}$/D', $sid) ||
+        ($connection && $sid !== $connection['sid']) ||
+        (!$connection && !preg_match('/^[A-Za-z0-9_-]{43}$/D', $secret))
+    ) {
+        return new WP_Error('fecwf_bad_response', 'FeCommerce returned an unexpected answer. Try again in a few minutes.');
+    }
+
+    if (!$connection) {
+        // The secret is a password: never autoloaded, never shown.
+        update_option(FECWF_SECRET_OPTION, $secret, false);
+        update_option(FECWF_CONNECTION_OPTION, array(
+            'sid' => $sid,
+            'store' => $origin,
+            'issued_at' => time(),
+        ), true);
+    }
+    delete_transient('fecwf_sites');
+    return isset($data['binding']) && is_array($data['binding']) ? $data['binding'] : array();
 }
 
 /*
@@ -224,39 +399,52 @@ function fecwf_guard_action($action)
     check_admin_referer($action);
 }
 
-add_action('admin_post_fecwf_connect', function () {
-    fecwf_guard_action('fecwf_connect');
-    if (fecwf_get_connection()) {
-        fecwf_flash('warning', 'This store is already connected. Use Regenerate for a new key.');
+add_action('admin_post_fecwf_pair_lookup', function () {
+    fecwf_guard_action('fecwf_pair_lookup');
+    $code = fecwf_normalize_code(isset($_POST['fecwf_code']) ? sanitize_text_field(wp_unslash($_POST['fecwf_code'])) : '');
+    if ($code === '') {
+        fecwf_flash('error', 'Enter the 8-character code the FeCommerce plugin in Framer shows, like K7QP-92MX.');
     } else {
-        $connection = fecwf_register();
-        if (is_wp_error($connection)) {
-            fecwf_flash('error', $connection->get_error_message());
+        $pending = fecwf_lookup($code);
+        if (is_wp_error($pending)) {
+            fecwf_flash('error', $pending->get_error_message());
         } else {
-            update_option(FECWF_CONNECTION_OPTION, $connection, true);
-            fecwf_flash('success', 'Connected. Copy the connection key below into the FeCommerce plugin in Framer.');
+            set_transient(fecwf_pending_key(), $pending, max(1, (int) $pending['approveBy'] - time()));
         }
     }
     wp_safe_redirect(fecwf_admin_url());
     exit;
 });
 
-add_action('admin_post_fecwf_regenerate', function () {
-    fecwf_guard_action('fecwf_regenerate');
-    $old = fecwf_get_connection();
-    $new = fecwf_register();
-    if (is_wp_error($new)) {
-        fecwf_flash('error', $new->get_error_message() . ' Your current key is unchanged.');
+add_action('admin_post_fecwf_pair_approve', function () {
+    fecwf_guard_action('fecwf_pair_approve');
+    $pending = fecwf_get_pending();
+    if (!$pending) {
+        fecwf_flash('error', 'The time to approve this code has run out. In Framer, start connecting again for a new code.');
     } else {
-        update_option(FECWF_CONNECTION_OPTION, $new, true);
-        $note = '';
-        if ($old) {
-            $revoked = fecwf_revoke($old);
-            if (is_wp_error($revoked)) {
-                $note = ' The old key couldn\'t be marked as replaced with the connection service (' . $revoked->get_error_message() . ').';
-            }
+        $result = fecwf_claim($pending);
+        delete_transient(fecwf_pending_key());
+        if (is_wp_error($result)) {
+            fecwf_flash('error', $result->get_error_message());
+        } else {
+            fecwf_flash('success', 'Approved "' . $pending['projectName'] . '". Go back to Framer and confirm your store there to finish connecting.');
         }
-        fecwf_flash('success', 'New connection key issued. Paste it into the FeCommerce plugin in each Framer project that uses this store.' . $note);
+    }
+    wp_safe_redirect(fecwf_admin_url());
+    exit;
+});
+
+add_action('admin_post_fecwf_pair_cancel', function () {
+    fecwf_guard_action('fecwf_pair_cancel');
+    $pending = fecwf_get_pending();
+    delete_transient(fecwf_pending_key());
+    if ($pending) {
+        $origin = fecwf_store_origin();
+        // Cancelling also expires on its own, so a failed call only delays it.
+        if (!is_wp_error($origin)) {
+            fecwf_api_post('/v1/pair/cancel', array('code' => $pending['code'], 'store' => $origin));
+        }
+        fecwf_flash('success', 'Cancelled. "' . $pending['projectName'] . '" was not connected.');
     }
     wp_safe_redirect(fecwf_admin_url());
     exit;
@@ -264,15 +452,9 @@ add_action('admin_post_fecwf_regenerate', function () {
 
 add_action('admin_post_fecwf_disconnect', function () {
     fecwf_guard_action('fecwf_disconnect');
-    $old = fecwf_get_connection();
-    if ($old) {
-        $revoked = fecwf_revoke($old);
-        delete_option(FECWF_CONNECTION_OPTION);
-        fecwf_flash(
-            is_wp_error($revoked) ? 'warning' : 'success',
-            'Disconnected. The key is no longer shown here.' .
-                (is_wp_error($revoked) ? ' It couldn\'t be marked as revoked with the connection service (' . $revoked->get_error_message() . ').' : '')
-        );
+    if (fecwf_get_connection()) {
+        fecwf_clear_connection();
+        fecwf_flash('success', 'Disconnected. Every Framer site connected to this store stops showing its products within about a minute.');
     }
     wp_safe_redirect(fecwf_admin_url());
     exit;
@@ -306,7 +488,7 @@ add_action('admin_notices', function () {
     if (!$screen || $screen->id !== 'plugins' || !current_user_can('manage_woocommerce') || fecwf_get_connection()) {
         return;
     }
-    echo '<div class="notice notice-info"><p><strong>FeCommerce:</strong> connect this store to Framer to get your connection key. <a href="' . esc_url(fecwf_admin_url()) . '">Connect to Framer</a></p></div>';
+    echo '<div class="notice notice-info"><p><strong>FeCommerce:</strong> connect this store to your Framer site with the code the FeCommerce plugin in Framer shows. <a href="' . esc_url(fecwf_admin_url()) . '">Connect to Framer</a></p></div>';
 });
 
 // Copies installed under the plugin's old names are switched off on activation
@@ -332,6 +514,47 @@ function fecwf_action_form($action, $label, $class, $confirm = '')
     <?php
 }
 
+/** "2 minutes ago" for when a code was created, or '' when unknown. */
+function fecwf_code_age($created_at)
+{
+    $created_at = (int) $created_at;
+    if ($created_at <= 0 || $created_at > time() + 60) {
+        return '';
+    }
+    return sprintf('%s ago', human_time_diff($created_at, time()));
+}
+
+/** The Approve screen for the code an admin just entered. */
+function fecwf_render_approve($pending, $origin)
+{
+    $hosts = $pending['hostnames'];
+    $age = fecwf_code_age($pending['createdAt']);
+    ?>
+    <div class="fecwf-approve">
+        <p class="fecwf-question">
+            Connect <strong>&ldquo;<?php echo esc_html($pending['projectName']); ?>&rdquo;</strong>
+            <?php if ($hosts) : ?>
+                (<span class="fecwf-hosts"><?php echo esc_html(implode(', ', $hosts)); ?></span>)
+            <?php endif; ?>
+            to <code><?php echo esc_html($origin); ?></code>?
+        </p>
+        <div class="fecwf-meta">
+            <div><span>Framer project</span><strong title="<?php echo esc_attr($pending['projectName']); ?>"><?php echo esc_html($pending['projectName']); ?></strong></div>
+            <div><span>Code</span><strong><?php echo esc_html(fecwf_display_code($pending['code'])); ?><?php echo $age !== '' ? ' · ' . esc_html('created ' . $age) : ''; ?></strong></div>
+        </div>
+        <p>That site will be able to show your products and run cart and checkout with this store.</p>
+        <div class="notice notice-warning inline"><p><strong>Only approve a code you just created in your own Framer project.</strong> FeCommerce will never ask you for a code.</p></div>
+        <div class="fecwf-actions">
+            <?php
+            fecwf_action_form('fecwf_pair_approve', 'Approve', 'fecwf-btn fecwf-btn-primary');
+            fecwf_action_form('fecwf_pair_cancel', 'Cancel', 'fecwf-btn');
+            ?>
+        </div>
+        <p class="fecwf-fine">You have until <?php echo esc_html(wp_date(get_option('time_format'), (int) $pending['approveBy'])); ?> to approve. After you approve, the person in Framer confirms your store there to finish.</p>
+    </div>
+    <?php
+}
+
 function fecwf_render_admin_page()
 {
     if (!current_user_can('manage_woocommerce')) {
@@ -341,7 +564,8 @@ function fecwf_render_admin_page()
     delete_transient('fecwf_notice_' . get_current_user_id());
     $origin = fecwf_store_origin();
     $connection = fecwf_get_connection();
-    $auth_host = wp_parse_url(fecwf_auth_base(), PHP_URL_HOST);
+    $pending = is_wp_error($origin) ? null : fecwf_get_pending();
+    $api_host = wp_parse_url(FECWF_API_BASE, PHP_URL_HOST);
     if ($connection && is_wp_error($origin)) {
         $pill = array(' is-warn', 'Needs attention');
     } elseif ($connection) {
@@ -368,60 +592,46 @@ function fecwf_render_admin_page()
             <h2>Connect to Framer</h2>
             <?php if (is_wp_error($origin)) : ?>
                 <div class="notice notice-error inline"><p><?php echo esc_html($origin->get_error_message()); ?></p></div>
-            <?php elseif (!$connection) : ?>
-                <p>The FeCommerce plugin in Framer only works with a store that has a <strong>connection key</strong>. Click below to get one for <code><?php echo esc_html($origin); ?></code>, then paste it into the FeCommerce plugin in Framer.</p>
-                <div class="fecwf-actions">
-                    <?php fecwf_action_form('fecwf_connect', 'Connect to Framer', 'fecwf-btn fecwf-btn-primary'); ?>
-                </div>
-                <p class="fecwf-fine">
-                    Clicking Connect sends your store's address to the FeCommerce connection service (<code><?php echo esc_html($auth_host); ?></code>).
-                    The service confirms the address belongs to this site by reading <code>/wp-json/fecommerce/v1/challenge</code> once, checks that WooCommerce answers by reading one product id from <code>/wp-json/wc/store/v1/products</code>, then signs your key.
-                    It keeps your store's hostname, a connection id and the dates; nothing else about your store or customers.
-                </p>
+            <?php elseif ($pending) : ?>
+                <?php fecwf_render_approve($pending, $origin); ?>
             <?php else : ?>
-                <div class="fecwf-meta">
-                    <div><span>Store</span><strong title="<?php echo esc_attr($connection['store']); ?>"><?php echo esc_html($connection['store']); ?></strong></div>
-                    <div><span>Connected since</span><strong><?php echo esc_html(wp_date(get_option('date_format'), (int) $connection['issued_at'])); ?></strong></div>
-                </div>
-
-                <label class="fecwf-label" for="fecwf-key">Connection key</label>
-                <div class="fecwf-key">
-                    <input type="text" id="fecwf-key" value="<?php echo esc_attr($connection['key']); ?>" readonly autocomplete="off" spellcheck="false" />
-                    <button type="button" class="fecwf-icon-btn" id="fecwf-reveal" aria-label="Show key" aria-pressed="false" aria-controls="fecwf-key">
-                        <span class="fecwf-when-off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span>
-                        <span class="fecwf-when-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.9 4.24A9.1 9.1 0 0 1 12 4c6.5 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19M6.6 6.6A18.4 18.4 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M2 2l20 20"/></svg></span>
-                    </button>
-                    <button type="button" class="fecwf-icon-btn fecwf-copy" id="fecwf-copy" aria-label="Copy key">
-                        <span class="fecwf-when-off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span class="fecwf-btn-text">Copy</span></span>
-                        <span class="fecwf-when-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg><span class="fecwf-btn-text">Copied</span></span>
-                    </button>
-                </div>
-                <span class="screen-reader-text" id="fecwf-copy-status" role="status" aria-live="polite"></span>
-                <p class="fecwf-copy-error" id="fecwf-copy-error" aria-hidden="true" hidden>Couldn't copy. Select the key and press Ctrl+C (Cmd+C on a Mac).</p>
-
+                <?php if ($connection) : ?>
+                    <div class="fecwf-meta">
+                        <div><span>Store</span><strong title="<?php echo esc_attr($connection['store']); ?>"><?php echo esc_html($connection['store']); ?></strong></div>
+                        <div><span>Connected since</span><strong><?php echo esc_html(wp_date(get_option('date_format'), (int) $connection['issued_at'])); ?></strong></div>
+                    </div>
+                    <p>To connect another Framer site, enter the code its FeCommerce plugin shows.</p>
+                <?php else : ?>
+                    <p>Connect <code><?php echo esc_html($origin); ?></code> to your Framer site with the code the FeCommerce plugin in Framer shows.</p>
+                <?php endif; ?>
                 <ol class="fecwf-steps">
-                    <li>In Framer, open the <strong>FeCommerce</strong> plugin.</li>
-                    <li>Paste the key into <strong>Connection key</strong> and click <strong>Connect</strong>.</li>
+                    <li>In Framer, open the <strong>FeCommerce</strong> plugin and click <strong>Connect store</strong>.</li>
+                    <li>Enter the code it shows below and click <strong>Continue</strong>. Codes change every 30 seconds, so keep the plugin open.</li>
+                    <li>Check the project and click <strong>Approve</strong>, then confirm your store in Framer.</li>
                 </ol>
-                <p class="fecwf-fine">This key isn't a password: it only proves to FeCommerce that this store is yours. It's safe on your published Framer site.</p>
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="fecwf-code-form">
+                    <input type="hidden" name="action" value="fecwf_pair_lookup" />
+                    <?php wp_nonce_field('fecwf_pair_lookup'); ?>
+                    <label class="fecwf-label" for="fecwf-code">Code from Framer</label>
+                    <div class="fecwf-code-row">
+                        <input type="text" id="fecwf-code" name="fecwf_code" class="fecwf-code" placeholder="K7QP-92MX" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" required />
+                        <button type="submit" class="fecwf-btn fecwf-btn-primary">Continue</button>
+                    </div>
+                </form>
+                <p class="fecwf-fine">
+                    Continue sends the code and your store's address to FeCommerce (<code><?php echo esc_html($api_host); ?></code>) to look up the Framer project.
+                    Approve then confirms the address belongs to this site by having FeCommerce read <code>/wp-json/fecommerce/v1/challenge</code> once, and checks that WooCommerce answers at <code>/wp-json/wc/store/v1/products</code>.
+                    FeCommerce keeps your store's hostname, its name, a connection id and dates; nothing about your products, orders or customers.
+                </p>
             <?php endif; ?>
         </div>
 
         <?php if ($connection) : ?>
             <div class="fecwf-card">
                 <h2>Manage</h2>
-                <?php if (is_wp_error($origin)) : ?>
-                    <p>This store is connected, but its site address can't be used right now, so the key can't be shown or regenerated. Fix the site address above, or disconnect this store.</p>
-                <?php else : ?>
-                    <p>Framer sites accept only the key this store currently shows, so Regenerate and Disconnect take effect on published sites within about a minute. To stop one particular site while keeping the others, restrict which sites may use this store below.</p>
-                <?php endif; ?>
+                <p>Disconnecting stops every Framer site connected to this store within about a minute. To connect again later, enter a new code from Framer.</p>
                 <div class="fecwf-actions">
-                    <?php
-                    if (!is_wp_error($origin)) {
-                        fecwf_action_form('fecwf_regenerate', 'Regenerate key', 'fecwf-btn', 'Issue a new connection key? The old key stops working on published Framer sites within about a minute, so paste the new key into each Framer project that uses this store and republish.');
-                    }
-                    fecwf_action_form('fecwf_disconnect', 'Disconnect', 'fecwf-btn fecwf-btn-danger', 'Disconnect this store from Framer? Published Framer sites that use this store stop showing its products within about a minute.');
-                    ?>
+                    <?php fecwf_action_form('fecwf_disconnect', 'Disconnect all Framer sites', 'fecwf-btn fecwf-btn-danger', 'Disconnect this store from Framer? Every Framer site connected to it stops showing its products, cart and checkout within about a minute.'); ?>
                 </div>
             </div>
         <?php endif; ?>
